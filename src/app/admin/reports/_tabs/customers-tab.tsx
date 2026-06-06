@@ -85,13 +85,13 @@ export function CustomersTab({ from, to, granularity }: TabProps) {
     },
   });
 
-  const topQ = useQuery<TopCustomer[]>({
+  const topQ = useQuery<{ items: TopCustomer[] }>({
     queryKey: ['reports', 'customers-top', fromIso, toIsoStr],
     queryFn: async () => {
       const res = await api.get('/admin/reports/customers/top', {
         params: { from: fromIso, to: toIsoStr, limit: 20 },
       });
-      return unwrap<TopCustomer[]>(res);
+      return unwrap<{ items: TopCustomer[] }>(res);
     },
   });
 
@@ -179,7 +179,7 @@ export function CustomersTab({ from, to, granularity }: TabProps) {
         <Table<TopCustomer>
           rowKey="userId"
           loading={topQ.isLoading}
-          dataSource={topQ.data ?? []}
+          dataSource={topQ.data?.items ?? []}
           pagination={false}
           scroll={{ x: 760 }}
           onRow={(row) => ({

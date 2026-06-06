@@ -98,7 +98,7 @@ function ReportsInner() {
       <Tabs
         activeKey={activeTab}
         onChange={handleTabChange}
-        destroyInactiveTabPane
+        destroyOnHidden
         items={[
           {
             key: 'revenue',

@@ -93,13 +93,13 @@ export function RevenueTab({ from, to, granularity }: TabProps) {
     },
   });
 
-  const categoryQ = useQuery<CategoryRevenueRow[]>({
+  const categoryQ = useQuery<{ items: CategoryRevenueRow[] }>({
     queryKey: ['reports', 'revenue-by-category', fromIso, toIsoStr],
     queryFn: async () => {
       const res = await api.get('/admin/reports/revenue-by-category', {
         params: { from: fromIso, to: toIsoStr },
       });
-      return unwrap<CategoryRevenueRow[]>(res);
+      return unwrap<{ items: CategoryRevenueRow[] }>(res);
     },
   });
 
@@ -150,7 +150,7 @@ export function RevenueTab({ from, to, granularity }: TabProps) {
   }, [paymentQ.data]);
 
   const categoryRows = useMemo(() => {
-    const list = (categoryQ.data ?? []).slice(0, 10);
+    const list = (categoryQ.data?.items ?? []).slice(0, 10);
     const max = list.reduce((m, r) => (r.revenue > m ? r.revenue : m), 0);
     return list.map((r) => ({
       label: r.categoryName,

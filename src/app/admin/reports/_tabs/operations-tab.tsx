@@ -119,11 +119,11 @@ export function OperationsTab({ from, to }: TabProps) {
     },
   });
 
-  const invCatQ = useQuery<InventoryCategoryRow[]>({
+  const invCatQ = useQuery<{ items: InventoryCategoryRow[] }>({
     queryKey: ['reports', 'inventory-by-category'],
     queryFn: async () => {
       const res = await api.get('/admin/reports/inventory-by-category');
-      return unwrap<InventoryCategoryRow[]>(res);
+      return unwrap<{ items: InventoryCategoryRow[] }>(res);
     },
   });
 
@@ -137,13 +137,13 @@ export function OperationsTab({ from, to }: TabProps) {
     },
   });
 
-  const statusQ = useQuery<OrderStatusRow[]>({
+  const statusQ = useQuery<{ items: OrderStatusRow[] }>({
     queryKey: ['reports', 'orders-status', fromIso, toIsoStr],
     queryFn: async () => {
       const res = await api.get('/admin/reports/orders/status-breakdown', {
         params: { from: fromIso, to: toIsoStr },
       });
-      return unwrap<OrderStatusRow[]>(res);
+      return unwrap<{ items: OrderStatusRow[] }>(res);
     },
   });
 
@@ -157,18 +157,18 @@ export function OperationsTab({ from, to }: TabProps) {
     },
   });
 
-  const voucherQ = useQuery<VoucherRow[]>({
+  const voucherQ = useQuery<{ items: VoucherRow[] }>({
     queryKey: ['reports', 'vouchers-usage', fromIso, toIsoStr],
     queryFn: async () => {
       const res = await api.get('/admin/reports/vouchers/usage', {
         params: { from: fromIso, to: toIsoStr },
       });
-      return unwrap<VoucherRow[]>(res);
+      return unwrap<{ items: VoucherRow[] }>(res);
     },
   });
 
   const invBars = useMemo(() => {
-    const rows = (invCatQ.data ?? []).slice(0, 10);
+    const rows = (invCatQ.data?.items ?? []).slice(0, 10);
     const max = rows.reduce((m, r) => (r.totalValue > m ? r.totalValue : m), 0);
     return rows.map((r) => ({
       label: r.categoryName,
@@ -179,8 +179,8 @@ export function OperationsTab({ from, to }: TabProps) {
   }, [invCatQ.data]);
 
   const orderedStatuses = useMemo(() => {
-    const map = new Map((statusQ.data ?? []).map((r) => [r.status, r]));
-    const total = (statusQ.data ?? []).reduce((s, r) => s + r.count, 0);
+    const map = new Map((statusQ.data?.items ?? []).map((r) => [r.status, r]));
+    const total = (statusQ.data?.items ?? []).reduce((s, r) => s + r.count, 0);
     return STATUS_ORDER.filter((s) => map.has(s)).map((s) => ({
       status: s,
       row: map.get(s)!,
@@ -206,7 +206,7 @@ export function OperationsTab({ from, to }: TabProps) {
   };
 
   const sortedVouchers = useMemo(
-    () => [...(voucherQ.data ?? [])].sort((a, b) => b.totalDiscount - a.totalDiscount),
+    () => [...(voucherQ.data?.items ?? [])].sort((a, b) => b.totalDiscount - a.totalDiscount),
     [voucherQ.data],
   );
 

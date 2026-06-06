@@ -215,11 +215,11 @@ export function PublicHeader() {
   const innerStyle: CSSProperties = {
     maxWidth: 1280,
     margin: "0 auto",
-    padding: isSmDown ? "0 12px" : isCompact ? "0 16px" : "0 24px",
+    padding: isSmDown ? "0 8px" : isCompact ? "0 16px" : "0 24px",
     height: "100%",
     display: "flex",
     alignItems: "center",
-    gap: isCompact ? 12 : 32,
+    gap: isSmDown ? 8 : isCompact ? 12 : 32,
   };
 
   const navStyle: CSSProperties = {
@@ -229,8 +229,8 @@ export function PublicHeader() {
   };
 
   const iconBtn: CSSProperties = {
-    width: 40,
-    height: 40,
+    width: isSmDown ? 34 : 40,
+    height: isSmDown ? 34 : 40,
     borderRadius: 999,
     border: "1px solid var(--color-divider)",
     display: "inline-flex",
@@ -250,7 +250,7 @@ export function PublicHeader() {
           style={{ display: "flex", alignItems: "center", flex: "0 0 auto" }}
           aria-label="Trang chủ"
         >
-          <EditorialLogo size={isCompact ? "sm" : "md"} />
+          <EditorialLogo size={isSmDown ? "xs" : isCompact ? "sm" : "md"} />
         </Link>
 
         {/* Desktop search bar (lg+) */}
@@ -290,7 +290,7 @@ export function PublicHeader() {
         {/* Spacer when compact pushes right cluster to the edge */}
         {isCompact && <div style={{ flex: 1 }} />}
 
-        <Space size={isSmDown ? 6 : 12} align="center">
+        <Space size={isSmDown ? 4 : 12} align="center">
           {/* Compact: surface search as an icon button that opens a drawer */}
           {isCompact && (
             <button
@@ -317,11 +317,11 @@ export function PublicHeader() {
           {/* Bell — interactive only when logged in as a customer. */}
           {accessToken && (!user || user.role === "CUSTOMER") ? (
             <NotificationsBell iconBtnStyle={iconBtn} />
-          ) : (
+          ) : !isSmDown ? (
             <span style={iconBtn} aria-label="Thông báo">
               <BellOutlined style={{ fontSize: 18 }} />
             </span>
-          )}
+          ) : null}
 
           {accessToken && user ? (
             <Dropdown menu={userMenu} placement="bottomRight">
