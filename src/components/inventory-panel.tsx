@@ -10,6 +10,8 @@ import {
   Form,
   Input,
   InputNumber,
+  List,
+  Pagination,
   Space,
   Switch,
   Table,
@@ -20,6 +22,7 @@ import { SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { api, extractErrorMessage, unwrap } from '@/lib/api';
+import { useResponsive } from '@/lib/use-responsive';
 
 const { Title, Text } = Typography;
 const PAGE_SIZE = 20;
@@ -69,9 +72,27 @@ interface RestockFormValues {
   note?: string;
 }
 
-export function InventoryPanel({ title = 'Tồn kho' }: { title?: string }) {
+/**
+ * Inventory management panel — table + restock drawer.
+ *
+ * Props:
+ *  - title: panel heading.
+ *  - compact: when true (auto-set on small screens), the table is swapped
+ *    for a List-of-Cards layout that stacks better on narrow viewports and
+ *    hides secondary columns (ISBN, threshold) below xs. If omitted, the
+ *    component falls back to `useResponsive().isMobile`.
+ */
+export function InventoryPanel({
+  title = 'Tồn kho',
+  compact,
+}: {
+  title?: string;
+  compact?: boolean;
+}) {
   const { message } = AntdApp.useApp();
   const queryClient = useQueryClient();
+  const { isMobile, isSmDown } = useResponsive();
+  const isCompact = compact ?? isMobile;
 
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -148,12 +169,12 @@ export function InventoryPanel({ title = 'Tồn kho' }: { title?: string }) {
           <Title level={3} style={{ margin: 0 }}>
             {title}
           </Title>
-          <Space wrap>
+          <Space wrap style={{ width: isCompact ? '100%' : undefined }}>
             <Input
               allowClear
               prefix={<SearchOutlined />}
               placeholder="Tên sách / ISBN..."
-              style={{ width: 280 }}
+              style={{ width: isCompact ? '100%' : 280, minWidth: 200 }}
               value={keywordInput}
               onChange={(e) => setKeywordInput(e.target.value)}
               onPressEnter={() => {
@@ -182,73 +203,169 @@ export function InventoryPanel({ title = 'Tồn kho' }: { title?: string }) {
           </Space>
         </div>
 
-        <Table<InventoryItem>
-          rowKey="id"
-          loading={listQ.isLoading}
-          dataSource={listQ.data?.items ?? []}
-          pagination={{
-            current: page,
-            pageSize: PAGE_SIZE,
-            total: listQ.data?.total ?? 0,
-            showSizeChanger: false,
-            onChange: (p) => setPage(p),
-          }}
-          onRow={(row) => ({
-            onClick: () => openRow(row),
-            style: { cursor: 'pointer' },
-          })}
-          columns={[
-            {
-              title: 'Tên sách',
-              dataIndex: 'title',
-              render: (t: string, row) => (
-                <span
-                  style={row.isLowStock ? { color: '#ff4d4f' } : undefined}
+        {isCompact ? (
+          <>
+            <List<InventoryItem>
+              loading={listQ.isLoading}
+              dataSource={listQ.data?.items ?? []}
+              locale={{ emptyText: 'Không có dữ liệu' }}
+              renderItem={(row) => (
+                <List.Item
+                  key={row.id}
+                  onClick={() => openRow(row)}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '12px 4px',
+                  }}
                 >
-                  <strong>{t}</strong>
-                </span>
-              ),
-            },
-            { title: 'ISBN', dataIndex: 'isbn', width: 150 },
-            {
-              title: 'Tồn kho',
-              dataIndex: 'stockQuantity',
-              align: 'right',
-              width: 110,
-              render: (v: number, row) => (
-                <span
-                  style={row.isLowStock ? { color: '#ff4d4f' } : undefined}
-                >
-                  {v}
-                </span>
-              ),
-            },
-            {
-              title: 'Ngưỡng cảnh báo',
-              dataIndex: 'lowStockThreshold',
-              align: 'right',
-              width: 130,
-            },
-            {
-              title: 'Trạng thái',
-              key: 'lowFlag',
-              width: 110,
-              render: (_: unknown, row) =>
-                row.isLowStock ? (
-                  <Tag color="red">Sắp hết</Tag>
-                ) : (
-                  <Tag color="green">Ổn</Tag>
+                  <div style={{ width: '100%' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'baseline',
+                        gap: 8,
+                      }}
+                    >
+                      <strong
+                        style={{
+                          color: row.isLowStock ? '#ff4d4f' : undefined,
+                          fontSize: 14,
+                          lineHeight: 1.3,
+                          flex: 1,
+                          minWidth: 0,
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {row.title}
+                      </strong>
+                      {row.isLowStock ? (
+                        <Tag color="red" style={{ margin: 0 }}>
+                          Sắp hết
+                        </Tag>
+                      ) : (
+                        <Tag color="green" style={{ margin: 0 }}>
+                          Ổn
+                        </Tag>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginTop: 6,
+                        fontSize: 12,
+                        color: '#666',
+                      }}
+                    >
+                      {/* Hide ISBN below xs to save space. */}
+                      {!isSmDown ? (
+                        <span>ISBN: {row.isbn}</span>
+                      ) : (
+                        <span />
+                      )}
+                      <span
+                        style={{
+                          color: row.isLowStock ? '#ff4d4f' : '#111',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Tồn: {row.stockQuantity}
+                        {!isSmDown ? ` / Ngưỡng: ${row.lowStockThreshold}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                </List.Item>
+              )}
+            />
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                paddingTop: 12,
+              }}
+            >
+              <Pagination
+                current={page}
+                pageSize={PAGE_SIZE}
+                total={listQ.data?.total ?? 0}
+                showSizeChanger={false}
+                onChange={(p) => setPage(p)}
+                size="small"
+              />
+            </div>
+          </>
+        ) : (
+          <Table<InventoryItem>
+            rowKey="id"
+            loading={listQ.isLoading}
+            dataSource={listQ.data?.items ?? []}
+            scroll={{ x: 720 }}
+            pagination={{
+              current: page,
+              pageSize: PAGE_SIZE,
+              total: listQ.data?.total ?? 0,
+              showSizeChanger: false,
+              onChange: (p) => setPage(p),
+            }}
+            onRow={(row) => ({
+              onClick: () => openRow(row),
+              style: { cursor: 'pointer' },
+            })}
+            columns={[
+              {
+                title: 'Tên sách',
+                dataIndex: 'title',
+                render: (t: string, row) => (
+                  <span
+                    style={row.isLowStock ? { color: '#ff4d4f' } : undefined}
+                  >
+                    <strong>{t}</strong>
+                  </span>
                 ),
-            },
-          ]}
-        />
+              },
+              { title: 'ISBN', dataIndex: 'isbn', width: 150 },
+              {
+                title: 'Tồn kho',
+                dataIndex: 'stockQuantity',
+                align: 'right',
+                width: 110,
+                render: (v: number, row) => (
+                  <span
+                    style={row.isLowStock ? { color: '#ff4d4f' } : undefined}
+                  >
+                    {v}
+                  </span>
+                ),
+              },
+              {
+                title: 'Ngưỡng cảnh báo',
+                dataIndex: 'lowStockThreshold',
+                align: 'right',
+                width: 130,
+              },
+              {
+                title: 'Trạng thái',
+                key: 'lowFlag',
+                width: 110,
+                render: (_: unknown, row) =>
+                  row.isLowStock ? (
+                    <Tag color="red">Sắp hết</Tag>
+                  ) : (
+                    <Tag color="green">Ổn</Tag>
+                  ),
+              },
+            ]}
+          />
+        )}
       </Space>
 
       <Drawer
         title={selected ? `Tồn kho: ${selected.title}` : 'Tồn kho'}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        width={720}
+        width={isCompact ? '100%' : 720}
       >
         {selected ? (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -303,6 +420,7 @@ export function InventoryPanel({ title = 'Tồn kho' }: { title?: string }) {
                 loading={logsQ.isLoading}
                 dataSource={logsQ.data?.items ?? []}
                 pagination={false}
+                scroll={{ x: 'max-content' }}
                 columns={[
                   {
                     title: 'Thời gian',

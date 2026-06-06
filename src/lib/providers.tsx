@@ -8,14 +8,17 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/vi';
 import { QueryProvider } from './query-client';
 import { useAuthStore } from './auth-store';
+import { useGuestCartStore } from './guest-cart-store';
 
 dayjs.locale('vi');
 
 function AuthHydrator({ children }: { children: ReactNode }) {
-  const hydrate = useAuthStore((s) => s.hydrate);
+  const hydrateAuth = useAuthStore((s) => s.hydrate);
+  const hydrateGuestCart = useGuestCartStore((s) => s.hydrate);
   useEffect(() => {
-    hydrate();
-  }, [hydrate]);
+    hydrateAuth();
+    hydrateGuestCart();
+  }, [hydrateAuth, hydrateGuestCart]);
   return <>{children}</>;
 }
 

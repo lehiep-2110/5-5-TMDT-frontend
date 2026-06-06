@@ -3,14 +3,18 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   Breadcrumb,
+  Button,
   Checkbox,
   Col,
+  Drawer,
   Pagination,
   Radio,
   Row,
   Segmented,
+  Select,
   Slider,
 } from 'antd';
+import { FilterOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState } from 'react';
@@ -19,6 +23,7 @@ import { BookCard } from '@/components/book-card';
 import { BookCardSkeleton } from '@/components/book-card-skeleton';
 import { EmptyState, PageHeading } from '@/components/editorial';
 import { formatVnd } from '@/lib/format';
+import { useResponsive } from '@/lib/use-responsive';
 import type {
   BookListItem,
   Category,
@@ -64,11 +69,194 @@ function FilterGroup({
 }
 
 /* --------------------------------------------------------------------------
+ * Filter body — shared between the desktop sidebar and the mobile Drawer.
+ * Receives the same props/state as the inline aside but renders without the
+ * sticky wrapper.
+ * ------------------------------------------------------------------------ */
+interface FilterBodyProps {
+  categoryId?: string;
+  flatCategories: Category[];
+  rangeDraft: [number, number];
+  setRangeDraft: (v: [number, number]) => void;
+  authors: { items: AuthorItem[] } | undefined;
+  selectedAuthorIds: Set<string>;
+  updateParams: (
+    patch: Record<string, string | number | undefined | null>,
+  ) => void;
+}
+
+function FilterBody({
+  categoryId,
+  flatCategories,
+  rangeDraft,
+  setRangeDraft,
+  authors,
+  selectedAuthorIds,
+  updateParams,
+}: FilterBodyProps) {
+  return (
+    <>
+      <FilterGroup title="Danh mục">
+        <ul
+          style={{
+            listStyle: 'none',
+            margin: 0,
+            padding: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          <li>
+            <button
+              onClick={() => updateParams({ categoryId: undefined })}
+              style={categoryButtonStyle(!categoryId)}
+            >
+              <span
+                style={{
+                  width: 3,
+                  height: 18,
+                  background: !categoryId
+                    ? 'var(--color-primary)'
+                    : 'transparent',
+                  marginRight: 10,
+                  borderRadius: 2,
+                }}
+              />
+              Tất cả
+            </button>
+          </li>
+          {flatCategories.slice(0, 10).map((c) => {
+            const active = c.id === categoryId;
+            return (
+              <li key={c.id}>
+                <button
+                  onClick={() => updateParams({ categoryId: c.id })}
+                  style={categoryButtonStyle(active)}
+                >
+                  <span
+                    style={{
+                      width: 3,
+                      height: 18,
+                      background: active
+                        ? 'var(--color-primary)'
+                        : 'transparent',
+                      marginRight: 10,
+                      borderRadius: 2,
+                    }}
+                  />
+                  <span style={{ flex: 1, textAlign: 'left' }}>{c.name}</span>
+                  <span
+                    style={{
+                      color: 'var(--color-muted)',
+                      fontSize: 12,
+                    }}
+                  >
+                    (24)
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </FilterGroup>
+
+      <FilterGroup title="Khoảng giá">
+        <Slider
+          range
+          min={0}
+          max={PRICE_MAX}
+          step={50000}
+          value={rangeDraft}
+          tooltip={{ formatter: (v) => formatVnd(v ?? 0) }}
+          onChange={(val) => setRangeDraft(val as [number, number])}
+          onChangeComplete={(val) => {
+            const [lo, hi] = val as [number, number];
+            updateParams({
+              minPrice: lo > 0 ? lo : undefined,
+              maxPrice: hi < PRICE_MAX ? hi : undefined,
+            });
+          }}
+        />
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginTop: 4,
+            fontSize: 12,
+            color: 'var(--color-muted)',
+          }}
+        >
+          <span>{formatVnd(rangeDraft[0])}</span>
+          <span>{formatVnd(rangeDraft[1])}</span>
+        </div>
+      </FilterGroup>
+
+      <FilterGroup title="Tác giả">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {(authors?.items ?? []).slice(0, 8).map((a) => {
+            const checked = selectedAuthorIds.has(a.id);
+            return (
+              <Checkbox
+                key={a.id}
+                checked={checked}
+                onChange={(e) => {
+                  const next = new Set(selectedAuthorIds);
+                  if (e.target.checked) next.add(a.id);
+                  else next.delete(a.id);
+                  updateParams({
+                    authors:
+                      next.size > 0 ? Array.from(next).join(',') : undefined,
+                  });
+                }}
+              >
+                <span style={{ fontSize: 13 }}>{a.name}</span>
+              </Checkbox>
+            );
+          })}
+          {(!authors || authors.items.length === 0) && (
+            <span style={{ color: 'var(--color-muted)', fontSize: 12 }}>
+              Đang tải...
+            </span>
+          )}
+        </div>
+      </FilterGroup>
+
+      <FilterGroup title="Đánh giá">
+        {/* TODO phase 2: wire rating filter */}
+        <Radio.Group
+          disabled
+          style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+        >
+          <Radio value="5">
+            <span style={{ color: 'var(--color-muted)', fontSize: 13 }}>
+              Từ 5 sao
+            </span>
+          </Radio>
+          <Radio value="4">
+            <span style={{ color: 'var(--color-muted)', fontSize: 13 }}>
+              4 sao trở lên
+            </span>
+          </Radio>
+          <Radio value="3">
+            <span style={{ color: 'var(--color-muted)', fontSize: 13 }}>
+              3 sao trở lên
+            </span>
+          </Radio>
+        </Radio.Group>
+      </FilterGroup>
+    </>
+  );
+}
+
+/* --------------------------------------------------------------------------
  * Inner (URL-driven) page
  * ------------------------------------------------------------------------ */
 function BooksListingInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isDesktop, isSmDown } = useResponsive();
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
   const keyword = searchParams.get('keyword') ?? '';
   const categoryId = searchParams.get('categoryId') ?? undefined;
@@ -183,6 +371,24 @@ function BooksListingInner() {
     );
   }, [categoryId, flatCategories]);
 
+  const filterProps: FilterBodyProps = {
+    categoryId,
+    flatCategories,
+    rangeDraft,
+    setRangeDraft,
+    authors,
+    selectedAuthorIds,
+    updateParams,
+  };
+
+  // Sort options — on mobile collapse to a Select for compact UX.
+  const sortOptions = [
+    { value: 'newest', label: 'Mới nhất' },
+    { value: 'bestselling', label: 'Bán chạy' },
+    { value: 'price_asc', label: 'Giá tăng' },
+    { value: 'price_desc', label: 'Giá giảm' },
+  ];
+
   return (
     <div style={{ paddingBottom: 40 }}>
       <Breadcrumb
@@ -194,229 +400,95 @@ function BooksListingInner() {
       />
 
       <Row gutter={[40, 32]}>
-        {/* -------------------------- SIDEBAR ----------------------------- */}
-        <Col xs={24} md={7} lg={6} xl={5}>
-          <aside
-            style={{
-              background: '#fff',
-              border: '1px solid var(--color-divider)',
-              borderRadius: 16,
-              padding: 24,
-              position: 'sticky',
-              top: 96,
-            }}
-          >
-            <div
+        {/* -------------------------- SIDEBAR (desktop only) -------------- */}
+        {isDesktop ? (
+          <Col xs={24} md={7} lg={6} xl={5}>
+            <aside
               style={{
-                fontFamily: 'var(--font-serif), Georgia, serif',
-                fontSize: 20,
-                fontWeight: 700,
-                color: 'var(--color-ink)',
-                marginBottom: 20,
+                background: '#fff',
+                border: '1px solid var(--color-divider)',
+                borderRadius: 16,
+                padding: 24,
+                position: 'sticky',
+                top: 96,
               }}
             >
-              Bộ lọc
-            </div>
-
-            <FilterGroup title="Danh mục">
-              <ul
-                style={{
-                  listStyle: 'none',
-                  margin: 0,
-                  padding: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                }}
-              >
-                <li>
-                  <button
-                    onClick={() =>
-                      updateParams({ categoryId: undefined })
-                    }
-                    style={categoryButtonStyle(!categoryId)}
-                  >
-                    <span
-                      style={{
-                        width: 3,
-                        height: 18,
-                        background: !categoryId
-                          ? 'var(--color-primary)'
-                          : 'transparent',
-                        marginRight: 10,
-                        borderRadius: 2,
-                      }}
-                    />
-                    Tất cả
-                  </button>
-                </li>
-                {flatCategories.slice(0, 10).map((c) => {
-                  const active = c.id === categoryId;
-                  return (
-                    <li key={c.id}>
-                      <button
-                        onClick={() =>
-                          updateParams({ categoryId: c.id })
-                        }
-                        style={categoryButtonStyle(active)}
-                      >
-                        <span
-                          style={{
-                            width: 3,
-                            height: 18,
-                            background: active
-                              ? 'var(--color-primary)'
-                              : 'transparent',
-                            marginRight: 10,
-                            borderRadius: 2,
-                          }}
-                        />
-                        <span style={{ flex: 1, textAlign: 'left' }}>
-                          {c.name}
-                        </span>
-                        <span
-                          style={{
-                            color: 'var(--color-muted)',
-                            fontSize: 12,
-                          }}
-                        >
-                          (24)
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </FilterGroup>
-
-            <FilterGroup title="Khoảng giá">
-              <Slider
-                range
-                min={0}
-                max={PRICE_MAX}
-                step={50000}
-                value={rangeDraft}
-                tooltip={{
-                  formatter: (v) => formatVnd(v ?? 0),
-                }}
-                onChange={(val) =>
-                  setRangeDraft(val as [number, number])
-                }
-                onChangeComplete={(val) => {
-                  const [lo, hi] = val as [number, number];
-                  updateParams({
-                    minPrice: lo > 0 ? lo : undefined,
-                    maxPrice: hi < PRICE_MAX ? hi : undefined,
-                  });
-                }}
-              />
               <div
                 style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginTop: 4,
-                  fontSize: 12,
-                  color: 'var(--color-muted)',
+                  fontFamily: 'var(--font-serif), Georgia, serif',
+                  fontSize: 20,
+                  fontWeight: 700,
+                  color: 'var(--color-ink)',
+                  marginBottom: 20,
                 }}
               >
-                <span>{formatVnd(rangeDraft[0])}</span>
-                <span>{formatVnd(rangeDraft[1])}</span>
+                Bộ lọc
               </div>
-            </FilterGroup>
-
-            <FilterGroup title="Tác giả">
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
-                }}
-              >
-                {(authors?.items ?? []).slice(0, 8).map((a) => {
-                  const checked = selectedAuthorIds.has(a.id);
-                  return (
-                    <Checkbox
-                      key={a.id}
-                      checked={checked}
-                      onChange={(e) => {
-                        const next = new Set(selectedAuthorIds);
-                        if (e.target.checked) next.add(a.id);
-                        else next.delete(a.id);
-                        updateParams({
-                          authors:
-                            next.size > 0
-                              ? Array.from(next).join(',')
-                              : undefined,
-                        });
-                      }}
-                    >
-                      <span style={{ fontSize: 13 }}>{a.name}</span>
-                    </Checkbox>
-                  );
-                })}
-                {(!authors || authors.items.length === 0) && (
-                  <span
-                    style={{ color: 'var(--color-muted)', fontSize: 12 }}
-                  >
-                    Đang tải...
-                  </span>
-                )}
-              </div>
-            </FilterGroup>
-
-            <FilterGroup title="Đánh giá">
-              {/* TODO phase 2: wire rating filter */}
-              <Radio.Group
-                disabled
-                style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
-              >
-                <Radio value="5">
-                  <span
-                    style={{ color: 'var(--color-muted)', fontSize: 13 }}
-                  >
-                    Từ 5 sao
-                  </span>
-                </Radio>
-                <Radio value="4">
-                  <span
-                    style={{ color: 'var(--color-muted)', fontSize: 13 }}
-                  >
-                    4 sao trở lên
-                  </span>
-                </Radio>
-                <Radio value="3">
-                  <span
-                    style={{ color: 'var(--color-muted)', fontSize: 13 }}
-                  >
-                    3 sao trở lên
-                  </span>
-                </Radio>
-              </Radio.Group>
-            </FilterGroup>
-          </aside>
-        </Col>
+              <FilterBody {...filterProps} />
+            </aside>
+          </Col>
+        ) : null}
 
         {/* -------------------------- CONTENT ----------------------------- */}
-        <Col xs={24} md={17} lg={18} xl={19}>
+        <Col xs={24} md={24} lg={18} xl={19}>
           <PageHeading
             eyebrow={categoryId ? 'Danh mục' : 'Tuyển chọn'}
             title={currentCategoryName}
             subtitle={`Tìm thấy ${total} đầu sách đang có sẵn — được ban biên tập The Editorial tuyển chọn.`}
             trailing={
-              <Segmented
-                value={sort}
-                onChange={(v) =>
-                  updateParams({ sort: String(v) as SortValue })
-                }
-                options={[
-                  { value: 'newest', label: 'Mới nhất' },
-                  { value: 'bestselling', label: 'Bán chạy' },
-                  { value: 'price_asc', label: 'Giá tăng' },
-                  { value: 'price_desc', label: 'Giá giảm' },
-                ]}
-              />
+              isDesktop ? (
+                <Segmented
+                  value={sort}
+                  onChange={(v) => updateParams({ sort: String(v) as SortValue })}
+                  options={sortOptions}
+                />
+              ) : null
             }
           />
+
+          {/* Mobile / tablet toolbar: Filter button + Sort selector. */}
+          {!isDesktop ? (
+            <div
+              style={{
+                display: 'flex',
+                gap: 12,
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                marginBottom: 20,
+              }}
+            >
+              <Button
+                icon={<FilterOutlined />}
+                onClick={() => setFilterDrawerOpen(true)}
+              >
+                Bộ lọc
+              </Button>
+              {isSmDown ? (
+                <Select
+                  value={sort}
+                  onChange={(v) => updateParams({ sort: v as SortValue })}
+                  options={sortOptions}
+                  style={{ minWidth: 160, flex: 1 }}
+                />
+              ) : (
+                <div
+                  style={{
+                    overflowX: 'auto',
+                    WebkitOverflowScrolling: 'touch',
+                    flex: 1,
+                  }}
+                >
+                  <Segmented
+                    value={sort}
+                    onChange={(v) =>
+                      updateParams({ sort: String(v) as SortValue })
+                    }
+                    options={sortOptions}
+                  />
+                </div>
+              )}
+            </div>
+          ) : null}
 
           {isLoading ? (
             <Row gutter={[24, 32]}>
@@ -460,6 +532,17 @@ function BooksListingInner() {
           )}
         </Col>
       </Row>
+
+      {/* Filter drawer (mobile / tablet) */}
+      <Drawer
+        title="Bộ lọc"
+        placement="left"
+        open={filterDrawerOpen && !isDesktop}
+        onClose={() => setFilterDrawerOpen(false)}
+        width={320}
+      >
+        <FilterBody {...filterProps} />
+      </Drawer>
     </div>
   );
 }
@@ -484,7 +567,8 @@ function BooksListingFallback() {
   return (
     <div style={{ paddingBottom: 40 }}>
       <Row gutter={[40, 32]}>
-        <Col xs={24} md={7} lg={6} xl={5}>
+        {/* Sidebar placeholder only at lg+, matching the live layout. */}
+        <Col xs={0} lg={6} xl={5}>
           <div
             style={{
               background: '#fff',
@@ -495,7 +579,7 @@ function BooksListingFallback() {
             }}
           />
         </Col>
-        <Col xs={24} md={17} lg={18} xl={19}>
+        <Col xs={24} lg={18} xl={19}>
           <Row gutter={[24, 32]}>
             {Array.from({ length: PAGE_LIMIT }).map((_, i) => (
               <Col xs={12} sm={8} lg={6} key={i}>

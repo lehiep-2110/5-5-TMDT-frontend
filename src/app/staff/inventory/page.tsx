@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { Col, Row } from 'antd';
 import {
   AlertOutlined,
   DatabaseOutlined,
@@ -10,6 +11,7 @@ import {
 import { api, unwrap } from '@/lib/api';
 import { InventoryPanel } from '@/components/inventory-panel';
 import { PageHeading, StatCard } from '@/components/editorial';
+import { useResponsive } from '@/lib/use-responsive';
 
 interface InventoryItem {
   id: string;
@@ -27,6 +29,7 @@ interface InventoryResp {
 }
 
 export default function StaffInventoryPage() {
+  const { isMobile } = useResponsive();
   // Lightweight summary fetches for the stat strip.
   const totalQ = useQuery({
     queryKey: ['staff-inventory-total'],
@@ -56,43 +59,44 @@ export default function StaffInventoryPage() {
         subtitle="Theo dõi tồn kho, nhập thêm hàng và xử lý cảnh báo tồn thấp theo thời gian thực."
       />
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        <StatCard
-          icon={<DatabaseOutlined />}
-          label="Tổng số đầu sách"
-          value={totalTitles.toLocaleString('vi-VN')}
-          tone="ink"
-        />
-        <StatCard
-          icon={<AlertOutlined />}
-          label="Sắp hết hàng"
-          value={lowStock.toLocaleString('vi-VN')}
-          tone="primary"
-        />
-        <StatCard
-          icon={<InboxOutlined />}
-          label="Nhập kho tuần này"
-          /* Mocked for MVP */
-          value="24"
-          delta={8}
-          tone="soft"
-        />
-        <StatCard
-          icon={<LineChartOutlined />}
-          label="Tỷ lệ đáp ứng"
-          /* Mocked for MVP */
-          value="96%"
-          delta={2}
-          tone="ink"
-        />
-      </div>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={6}>
+          <StatCard
+            icon={<DatabaseOutlined />}
+            label="Tổng số đầu sách"
+            value={totalTitles.toLocaleString('vi-VN')}
+            tone="ink"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <StatCard
+            icon={<AlertOutlined />}
+            label="Sắp hết hàng"
+            value={lowStock.toLocaleString('vi-VN')}
+            tone="primary"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <StatCard
+            icon={<InboxOutlined />}
+            label="Nhập kho tuần này"
+            /* Mocked for MVP */
+            value="24"
+            delta={8}
+            tone="soft"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <StatCard
+            icon={<LineChartOutlined />}
+            label="Tỷ lệ đáp ứng"
+            /* Mocked for MVP */
+            value="96%"
+            delta={2}
+            tone="ink"
+          />
+        </Col>
+      </Row>
 
       <div
         style={{
@@ -103,7 +107,7 @@ export default function StaffInventoryPage() {
           overflow: 'hidden',
         }}
       >
-        <InventoryPanel title="Danh mục tồn kho" />
+        <InventoryPanel title="Danh mục tồn kho" compact={isMobile} />
       </div>
     </div>
   );

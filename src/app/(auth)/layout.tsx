@@ -3,12 +3,17 @@
 import Link from 'next/link';
 import type { CSSProperties, ReactNode } from 'react';
 import { EditorialLogo } from '@/components/editorial';
+import { useResponsive } from '@/lib/use-responsive';
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
+  const { screens, isSmDown } = useResponsive();
+  // On `< md` we collapse to a single-column form view.
+  const isSplit = !!screens.md;
+
   const wrapper: CSSProperties = {
     minHeight: '100vh',
     display: 'grid',
-    gridTemplateColumns: '1.2fr 1fr',
+    gridTemplateColumns: isSplit ? '1.2fr 1fr' : '1fr',
     background: '#fff',
   };
   const leftPanel: CSSProperties = {
@@ -24,7 +29,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '48px 32px',
+    padding: isSmDown ? '24px 16px' : isSplit ? '48px 32px' : '40px 24px',
   };
   const formCard: CSSProperties = {
     width: '100%',
@@ -68,42 +73,56 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
   return (
     <div style={wrapper}>
-      <div style={leftPanel}>
-        <div style={imageWrap}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=1200&q=60"
-            alt="Stacked books"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              filter: 'grayscale(0.1) contrast(0.95)',
-            }}
-          />
-        </div>
-        <div style={overlay} />
-        <div style={{ position: 'relative', zIndex: 2 }}>
-          <Link href="/">
-            <EditorialLogo size="lg" subtitle="Bookstore — est. 2024" />
-          </Link>
-        </div>
-        <div style={quoteWrap}>
-          <div
-            className="eyebrow"
-            style={{ marginBottom: 16, color: 'var(--color-primary)' }}
-          >
-            Trích từ biên tập viên
+      {isSplit && (
+        <div style={leftPanel}>
+          <div style={imageWrap}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=1200&q=60"
+              alt="Stacked books"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                filter: 'grayscale(0.1) contrast(0.95)',
+              }}
+            />
           </div>
-          <p style={quoteText}>
-            “Một cuốn sách hay không chỉ kể chuyện — nó dành cho người đọc
-            một khoảng lặng để tự tìm thấy chính mình.”
-          </p>
-          <div style={quoteCite}>— The Editorial</div>
+          <div style={overlay} />
+          <div style={{ position: 'relative', zIndex: 2 }}>
+            <Link href="/">
+              <EditorialLogo size="lg" subtitle="Bookstore — est. 2024" />
+            </Link>
+          </div>
+          <div style={quoteWrap}>
+            <div
+              className="eyebrow"
+              style={{ marginBottom: 16, color: 'var(--color-primary)' }}
+            >
+              Trích từ biên tập viên
+            </div>
+            <p style={quoteText}>
+              “Một cuốn sách hay không chỉ kể chuyện — nó dành cho người đọc
+              một khoảng lặng để tự tìm thấy chính mình.”
+            </p>
+            <div style={quoteCite}>— The Editorial</div>
+          </div>
         </div>
-      </div>
+      )}
       <div style={rightPanel}>
-        <div style={formCard}>{children}</div>
+        <div style={formCard}>
+          {!isSplit && (
+            <div style={{ marginBottom: 24, textAlign: 'center' }}>
+              <Link href="/">
+                <EditorialLogo
+                  size={isSmDown ? 'md' : 'lg'}
+                  subtitle="Bookstore — est. 2024"
+                />
+              </Link>
+            </div>
+          )}
+          {children}
+        </div>
       </div>
     </div>
   );

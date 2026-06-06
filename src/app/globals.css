@@ -85,3 +85,155 @@ a:hover {
 .editorial-soft {
   background: var(--color-soft);
 }
+
+/* ------------------------------------------------------------------------
+ * Responsive helpers
+ * ------------------------------------------------------------------------ */
+
+/* Image safe sizing */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Tablet / mobile container shrink */
+@media (max-width: 992px) {
+  .container-editorial {
+    padding: 0 20px;
+  }
+  /* Make AntD Tables horizontally scroll on tablets/mobile */
+  .ant-table-wrapper {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .container-editorial {
+    padding: 0 16px;
+  }
+  h1 {
+    font-size: 32px;
+  }
+  h2 {
+    font-size: 24px;
+  }
+  h3 {
+    font-size: 20px;
+  }
+  h1,
+  h2 {
+    letter-spacing: -0.005em;
+  }
+  /* Reduce table density */
+  .ant-table-cell {
+    padding: 12px 8px !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .container-editorial {
+    padding: 0 12px;
+  }
+  .ant-modal {
+    max-width: calc(100vw - 16px) !important;
+  }
+  .ant-drawer-content-wrapper {
+    width: 100vw !important;
+    max-width: 360px;
+  }
+  .ant-page-header {
+    padding: 12px 0 !important;
+  }
+}
+
+/* ------------------------------------------------------------------------
+ * Responsive dashboard / report grids
+ *
+ * Plain CSS-grid utilities that auto-collapse at our breakpoints. Used by the
+ * admin reports tabs and dashboards so the column layouts reflow on
+ * tablet/mobile without relying on JS breakpoint detection (avoids SSR flash).
+ *   lg = 992px, md = 768px, sm = 576px (AntD defaults).
+ * ------------------------------------------------------------------------ */
+.report-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.report-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.report-grid-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.report-grid-main {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+}
+
+/* Two big content columns collapse below the desktop breakpoint. */
+@media (max-width: 991px) {
+  .report-grid-split,
+  .report-grid-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Triple stat rows collapse to a single column on phones. */
+@media (max-width: 767px) {
+  .report-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 2x2 stat blocks collapse to a single column on the smallest phones. */
+@media (max-width: 575px) {
+  .report-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------------------------------------------------
+ * BookCard responsive tweaks
+ * ------------------------------------------------------------------------ */
+.book-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.book-card > * {
+  min-width: 0;
+}
+
+@media (hover: hover) {
+  .book-card.book-card-interactive:hover {
+    transform: translateY(-4px);
+  }
+}
+
+@media (max-width: 576px) {
+  .book-card .book-card-title {
+    font-size: 14px !important;
+    min-height: 36px !important;
+  }
+  .book-card .book-card-eyebrow {
+    font-size: 10px !important;
+  }
+  .book-card .book-card-price {
+    font-size: 14px !important;
+  }
+  .book-card .book-card-price-original {
+    font-size: 12px !important;
+  }
+}
+

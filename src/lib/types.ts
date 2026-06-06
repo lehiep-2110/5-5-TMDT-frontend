@@ -1,5 +1,9 @@
 export type UserRole = 'CUSTOMER' | 'ADMIN' | 'WAREHOUSE_STAFF';
-export type UserStatus = 'ACTIVE' | 'LOCKED' | 'BANNED' | 'PENDING';
+export type UserStatus =
+  | 'ACTIVE'
+  | 'LOCKED'
+  | 'BANNED'
+  | 'PENDING_VERIFICATION';
 
 export interface User {
   id: number | string;
@@ -174,6 +178,7 @@ export interface OrderItemView {
   quantity: number;
   priceAtTime: string;
   bookTitleSnapshot: string;
+  isReviewed?: boolean;
   book: {
     id: string;
     slug: string;
@@ -227,4 +232,79 @@ export interface Address {
   isDefault: boolean;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Reviews (UC-07)
+// ---------------------------------------------------------------------------
+export interface ReviewItem {
+  id: string;
+  stars: number;
+  title?: string | null;
+  content?: string | null;
+  createdAt: string;
+  user: {
+    fullName: string;
+    avatarUrl: string | null;
+  };
+  images?: string[];
+}
+
+export interface MyReviewItem extends ReviewItem {
+  bookId: string;
+  book: { id: string; slug: string; title: string } | null;
+  status?: string;
+}
+
+export interface BookReviewsResponse {
+  items: ReviewItem[];
+  total: number;
+  page: number;
+  limit: number;
+  avgRating: string;
+  reviewCount: number;
+}
+
+// ---------------------------------------------------------------------------
+// Wishlist (UC-09)
+// ---------------------------------------------------------------------------
+export interface WishlistItem {
+  id: string;
+  bookId: string;
+  createdAt?: string;
+  book: {
+    id: string;
+    slug: string;
+    title: string;
+    price: string;
+    discountPrice: string | null;
+    primaryImage: string | null;
+    stockQuantity: number;
+    authors: BookAuthorRef[];
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (UC-10 + UC-18)
+// ---------------------------------------------------------------------------
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  link?: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Vouchers (UC-16)
+// ---------------------------------------------------------------------------
+export interface VoucherValidation {
+  voucherId: string;
+  code: string;
+  type: string;
+  value: string | number;
+  discountAmount: number;
+  finalSubtotal: number;
 }

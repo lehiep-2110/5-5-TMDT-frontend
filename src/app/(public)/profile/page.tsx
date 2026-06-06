@@ -229,7 +229,7 @@ function AddressModal({
           <Input />
         </Form.Item>
         <Row gutter={12}>
-          <Col span={8}>
+          <Col xs={24} sm={8}>
             <Form.Item
               name="province"
               label="Tỉnh/TP"
@@ -238,7 +238,7 @@ function AddressModal({
               <Input />
             </Form.Item>
           </Col>
-          <Col span={8}>
+          <Col xs={24} sm={8}>
             <Form.Item
               name="district"
               label="Quận/Huyện"
@@ -247,7 +247,7 @@ function AddressModal({
               <Input />
             </Form.Item>
           </Col>
-          <Col span={8}>
+          <Col xs={24} sm={8}>
             <Form.Item
               name="ward"
               label="Phường/Xã"

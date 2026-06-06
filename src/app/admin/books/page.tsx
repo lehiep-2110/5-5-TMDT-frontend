@@ -9,7 +9,9 @@ import {
   Form,
   Input,
   InputNumber,
+  List,
   Modal,
+  Pagination,
   Popconfirm,
   Select,
   Space,
@@ -18,6 +20,8 @@ import {
   TreeSelect,
   Upload,
 } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import { useResponsive } from '@/lib/use-responsive';
 import type { UploadFile } from 'antd/es/upload/interface';
 import {
   DeleteOutlined,
@@ -95,6 +99,8 @@ function toTreeData(nodes: CategoryNode[]): CatTreeNode[] {
 export default function AdminBooksPage() {
   const { message } = AntdApp.useApp();
   const queryClient = useQueryClient();
+  const { isMobile, screens, isSmDown } = useResponsive();
+  const isMdDown = !screens.md;
 
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -284,19 +290,19 @@ export default function AdminBooksPage() {
         title="Quản lý Sách & Ấn phẩm"
         subtitle="Duyệt, cập nhật và bổ sung tựa sách cho cửa hàng."
         trailing={
-          <Space wrap>
+          <Space wrap style={isMobile ? { width: '100%' } : undefined}>
             <Input
               allowClear
               prefix={<SearchOutlined />}
               placeholder="Tìm theo tên/ISBN/tác giả..."
-              style={{ width: 280 }}
+              style={{ width: isMobile ? '100%' : 280 }}
               value={keywordInput}
               onChange={(e) => setKeywordInput(e.target.value)}
               onPressEnter={() => setKeyword(keywordInput)}
             />
             <Select<BookStatusFilter>
               value={status}
-              style={{ width: 140 }}
+              style={{ width: isMobile ? 130 : 140 }}
               onChange={setStatus}
               options={[
                 { value: 'ALL', label: 'Tất cả' },
@@ -309,7 +315,7 @@ export default function AdminBooksPage() {
               icon={<PlusOutlined />}
               onClick={openCreate}
             >
-              Thêm sách mới
+              {isMobile ? 'Thêm' : 'Thêm sách mới'}
             </Button>
           </Space>
         }
@@ -320,7 +326,84 @@ export default function AdminBooksPage() {
           borderRadius: 12,
           boxShadow: '0 1px 2px rgba(26,26,26,0.03)',
         }}
+        bodyStyle={isSmDown ? { padding: 12 } : undefined}
       >
+        {isSmDown ? (
+          <>
+            <List<BookListItem>
+              loading={listQ.isLoading}
+              dataSource={listQ.data?.items ?? []}
+              rowKey="id"
+              renderItem={(row) => (
+                <List.Item
+                  style={{
+                    padding: '12px 0',
+                    borderBottom: '1px solid var(--color-divider)',
+                  }}
+                  actions={[
+                    <Button
+                      key="edit"
+                      type="link"
+                      icon={<EditOutlined />}
+                      onClick={() => openEdit(row.id)}
+                    />,
+                    <Popconfirm
+                      key="del"
+                      title="Ẩn sách này?"
+                      okText="Ẩn"
+                      cancelText="Huỷ"
+                      onConfirm={() => deleteMutation.mutate(row.id)}
+                    >
+                      <Button type="link" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>,
+                  ]}
+                >
+                  <List.Item.Meta
+                    avatar={
+                      <BookCover
+                        src={row.primaryImage}
+                        alt={row.title}
+                        width={60}
+                        height={80}
+                        borderRadius={4}
+                      />
+                    }
+                    title={
+                      <div style={{ fontWeight: 600, color: 'var(--color-ink)' }}>
+                        {row.title}
+                      </div>
+                    }
+                    description={
+                      <div style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+                        <div>{row.authors.map((a) => a.name).join(', ') || '—'}</div>
+                        <div style={{ marginTop: 4, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <strong style={{ color: 'var(--color-ink)' }}>
+                            {formatVnd(row.price)}
+                          </strong>
+                          <span>Tồn: {row.stockQuantity}</span>
+                          {row.status === 'ACTIVE' ? (
+                            <Tag color="green" style={{ margin: 0 }}>Đang bán</Tag>
+                          ) : (
+                            <Tag color="red" style={{ margin: 0 }}>Đã ẩn</Tag>
+                          )}
+                        </div>
+                      </div>
+                    }
+                  />
+                </List.Item>
+              )}
+            />
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
+              <Pagination
+                simple
+                current={page}
+                pageSize={PAGE_SIZE}
+                total={listQ.data?.total ?? 0}
+                onChange={(p) => setPage(p)}
+              />
+            </div>
+          </>
+        ) : (
         <Table<BookListItem>
           rowKey="id"
           loading={listQ.isLoading}
@@ -331,8 +414,9 @@ export default function AdminBooksPage() {
             total: listQ.data?.total ?? 0,
             showSizeChanger: false,
             onChange: (p) => setPage(p),
+            simple: isMobile,
           }}
-          scroll={{ x: 1100 }}
+          scroll={{ x: isMdDown ? 800 : 1100 }}
           columns={[
             {
               title: 'Ảnh',
@@ -353,25 +437,31 @@ export default function AdminBooksPage() {
               dataIndex: 'title',
               render: (t: string) => <strong>{t}</strong>,
             },
-            { title: 'ISBN', dataIndex: 'isbn', width: 140 },
+            !isMdDown
+              ? { title: 'ISBN', dataIndex: 'isbn', width: 140 }
+              : null,
             {
               title: 'Danh mục',
               key: 'category',
               width: 140,
               render: (_: unknown, row) => row.category?.name ?? '—',
             },
-            {
-              title: 'NXB',
-              key: 'publisher',
-              width: 140,
-              render: (_: unknown, row) => row.publisher?.name ?? '—',
-            },
-            {
-              title: 'Tác giả',
-              key: 'authors',
-              render: (_: unknown, row) =>
-                row.authors.map((a) => a.name).join(', ') || '—',
-            },
+            !isMdDown
+              ? {
+                  title: 'NXB',
+                  key: 'publisher',
+                  width: 140,
+                  render: (_: unknown, row) => row.publisher?.name ?? '—',
+                }
+              : null,
+            !isMdDown
+              ? {
+                  title: 'Tác giả',
+                  key: 'authors',
+                  render: (_: unknown, row) =>
+                    row.authors.map((a) => a.name).join(', ') || '—',
+                }
+              : null,
             {
               title: 'Giá',
               dataIndex: 'price',
@@ -420,8 +510,9 @@ export default function AdminBooksPage() {
                 </Space>
               ),
             },
-          ]}
+          ].filter(Boolean) as ColumnsType<BookListItem>}
         />
+        )}
       </Card>
 
       <Modal
@@ -432,7 +523,8 @@ export default function AdminBooksPage() {
         confirmLoading={submitMutation.isPending}
         okText="Lưu"
         cancelText="Huỷ"
-        width={800}
+        width={isMobile ? '100%' : 800}
+        style={isMobile ? { top: 8, padding: 0, maxWidth: 'calc(100vw - 16px)' } : undefined}
         destroyOnClose
       >
         <Form<BookFormValues>
@@ -458,12 +550,12 @@ export default function AdminBooksPage() {
           >
             <Input />
           </Form.Item>
-          <Space.Compact block>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Form.Item
               name="publisherId"
               label="Nhà xuất bản"
               rules={[{ required: true, message: 'Chọn NXB' }]}
-              style={{ flex: 1, marginRight: 8 }}
+              style={{ flex: 1 }}
             >
               <Select
                 placeholder="Chọn NXB"
@@ -490,12 +582,12 @@ export default function AdminBooksPage() {
                 treeNodeFilterProp="title"
               />
             </Form.Item>
-          </Space.Compact>
-          <Space.Compact block>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Form.Item
               name="language"
               label="Ngôn ngữ"
-              style={{ flex: 1, marginRight: 8 }}
+              style={{ flex: 1 }}
             >
               <Input placeholder="Tieng Viet" />
             </Form.Item>
@@ -510,20 +602,20 @@ export default function AdminBooksPage() {
                 style={{ width: '100%' }}
               />
             </Form.Item>
-          </Space.Compact>
-          <Space.Compact block>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Form.Item
               name="price"
               label="Giá (₫)"
               rules={[{ required: true, message: 'Nhập giá' }]}
-              style={{ flex: 1, marginRight: 8 }}
+              style={{ flex: 1 }}
             >
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
               name="discountPrice"
               label="Giá giảm"
-              style={{ flex: 1, marginRight: 8 }}
+              style={{ flex: 1 }}
             >
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
@@ -534,27 +626,27 @@ export default function AdminBooksPage() {
             >
               <DatePicker style={{ width: '100%' }} />
             </Form.Item>
-          </Space.Compact>
-          <Space.Compact block>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Form.Item
               name="stockQuantity"
               label="Tồn kho"
               rules={[{ required: true, message: 'Nhập tồn' }]}
-              style={{ flex: 1, marginRight: 8 }}
+              style={{ flex: 1 }}
             >
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
               name="pages"
               label="Số trang"
-              style={{ flex: 1, marginRight: 8 }}
+              style={{ flex: 1 }}
             >
               <InputNumber min={1} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
               name="dimensions"
               label="Kích thước"
-              style={{ flex: 1, marginRight: 8 }}
+              style={{ flex: 1 }}
             >
               <Input placeholder="vd: 14x20cm" />
             </Form.Item>
@@ -565,13 +657,13 @@ export default function AdminBooksPage() {
             >
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
-          </Space.Compact>
-          <Space.Compact block>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Form.Item
               name="status"
               label="Trạng thái"
               rules={[{ required: true }]}
-              style={{ flex: 1, marginRight: 8 }}
+              style={{ flex: 1 }}
             >
               <Select
                 options={[
@@ -587,7 +679,7 @@ export default function AdminBooksPage() {
             >
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
-          </Space.Compact>
+          </div>
           <Form.Item
             name="authorIds"
             label="Tác giả"

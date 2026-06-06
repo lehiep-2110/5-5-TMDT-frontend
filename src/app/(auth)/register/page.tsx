@@ -27,7 +27,7 @@ const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
 const headingStyle: CSSProperties = {
   fontFamily: 'var(--font-serif), Georgia, serif',
-  fontSize: 40,
+  fontSize: 'clamp(28px, 7vw, 40px)',
   lineHeight: 1.15,
   letterSpacing: '-0.01em',
   color: 'var(--color-ink)',

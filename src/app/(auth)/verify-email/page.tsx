@@ -11,7 +11,7 @@ const { Paragraph, Text } = Typography;
 
 const headingStyle: CSSProperties = {
   fontFamily: 'var(--font-serif), Georgia, serif',
-  fontSize: 36,
+  fontSize: 'clamp(26px, 6vw, 36px)',
   lineHeight: 1.15,
   letterSpacing: '-0.01em',
   color: 'var(--color-ink)',

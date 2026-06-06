@@ -24,6 +24,7 @@ import {
 } from '@ant-design/icons';
 import { useMemo, useState } from 'react';
 import { api, extractErrorMessage, unwrap } from '@/lib/api';
+import { useResponsive } from '@/lib/use-responsive';
 
 interface CategoryFlat {
   id: string;
@@ -109,6 +110,7 @@ function toTree(
 export default function AdminCategoriesPage() {
   const { message } = AntdApp.useApp();
   const queryClient = useQueryClient();
+  const { isMobile } = useResponsive();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -228,6 +230,7 @@ export default function AdminCategoriesPage() {
           loading={listQ.isLoading}
           dataSource={items}
           pagination={false}
+          scroll={{ x: 720 }}
           columns={[
             { title: 'Tên', dataIndex: 'name' },
             { title: 'Slug', dataIndex: 'slug' },
@@ -319,11 +322,11 @@ export default function AdminCategoriesPage() {
           <Form.Item name="imageUrl" label="URL ảnh">
             <Input placeholder="https://..." />
           </Form.Item>
-          <Space.Compact block>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Form.Item
               name="displayOrder"
               label="Thứ tự"
-              style={{ flex: 1, marginRight: 8 }}
+              style={{ flex: 1 }}
             >
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
@@ -335,7 +338,7 @@ export default function AdminCategoriesPage() {
             >
               <Switch />
             </Form.Item>
-          </Space.Compact>
+          </div>
         </Form>
       </Modal>
     </div>

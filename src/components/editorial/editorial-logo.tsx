@@ -3,12 +3,13 @@
 import type { CSSProperties } from 'react';
 
 interface EditorialLogoProps {
-  size?: 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg';
   subtitle?: string;
   color?: string;
 }
 
-const SIZE_MAP: Record<'md' | 'lg', { fontSize: number; tracking: number }> = {
+const SIZE_MAP: Record<'sm' | 'md' | 'lg', { fontSize: number; tracking: number }> = {
+  sm: { fontSize: 14, tracking: 2 },
   md: { fontSize: 18, tracking: 3 },
   lg: { fontSize: 26, tracking: 4 },
 };

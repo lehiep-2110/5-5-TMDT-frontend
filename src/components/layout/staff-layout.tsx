@@ -1,14 +1,16 @@
 'use client';
 
-import { Avatar, Input, Layout, Menu, Typography } from 'antd';
+import { Avatar, Drawer, Input, Layout, Menu, Modal, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   BellOutlined,
   BookOutlined,
+  CloseOutlined,
   DashboardOutlined,
   DatabaseOutlined,
   FileTextOutlined,
   LogoutOutlined,
+  MenuOutlined,
   QuestionCircleOutlined,
   SearchOutlined,
   SettingOutlined,
@@ -18,11 +20,18 @@ import {
 } from '@ant-design/icons';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useMemo, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { AuthGuard } from './auth-guard';
 import { useAuthStore } from '@/lib/auth-store';
 import { useLogout } from '@/lib/auth-hooks';
 import { EditorialLogo } from '@/components/editorial';
+import { useResponsive } from '@/lib/use-responsive';
 
 const { Sider, Content } = Layout;
 const { Text } = Typography;
@@ -94,6 +103,17 @@ export function StaffLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? '';
   const user = useAuthStore((s) => s.user);
   const logout = useLogout();
+  const { screens, isSmDown } = useResponsive();
+  const isCompact = !screens.lg;
+  const isMdDown = !screens.lg;
+
+  const [navOpen, setNavOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    setNavOpen(false);
+    setSearchOpen(false);
+  }, [pathname]);
 
   const selectedKey = useMemo(() => {
     const matches = MENU_ITEMS.filter(
@@ -122,154 +142,220 @@ export function StaffLayout({ children }: { children: ReactNode }) {
     .slice(0, 2)
     .toUpperCase();
 
-  return (
-    <AuthGuard role="WAREHOUSE_STAFF">
-      <Layout style={{ minHeight: '100vh', background: 'var(--color-soft)' }}>
-        <Sider
-          theme="light"
-          width={260}
-          breakpoint="lg"
+  // Shared sidebar body used by both Sider and Drawer.
+  const sidebarBody = (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div
+        style={{
+          padding: '28px 24px 20px',
+          borderBottom: '1px solid var(--color-divider)',
+        }}
+      >
+        <EditorialLogo size="md" subtitle="HỆ THỐNG KHO" />
+      </div>
+      <Menu
+        mode="inline"
+        selectedKeys={[selectedKey]}
+        items={menuItems}
+        onClick={() => setNavOpen(false)}
+        style={{
+          borderRight: 0,
+          padding: '16px 12px',
+          fontFamily: 'var(--font-sans), sans-serif',
+          flex: 1,
+        }}
+      />
+      <div
+        style={{
+          padding: '16px 20px 20px',
+          borderTop: '1px solid var(--color-divider)',
+          background: '#fff',
+        }}
+      >
+        <div
           style={{
-            background: '#fff',
-            borderRight: '1px solid var(--color-divider)',
-            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 12,
           }}
         >
-          <div
+          <Avatar
+            size={38}
             style={{
-              padding: '28px 24px 20px',
-              borderBottom: '1px solid var(--color-divider)',
+              background: 'var(--color-primary)',
+              color: '#fff',
+              fontWeight: 600,
             }}
           >
-            <EditorialLogo size="md" subtitle="HỆ THỐNG KHO" />
-          </div>
-          <Menu
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            items={menuItems}
-            style={{
-              borderRight: 0,
-              padding: '16px 12px',
-              fontFamily: 'var(--font-sans), sans-serif',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              padding: '16px 20px 20px',
-              borderTop: '1px solid var(--color-divider)',
-              background: '#fff',
-            }}
-          >
+            {initials}
+          </Avatar>
+          <div style={{ lineHeight: 1.25, overflow: 'hidden' }}>
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                marginBottom: 12,
+                fontWeight: 600,
+                color: 'var(--color-ink)',
+                fontSize: 14,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
-              <Avatar
-                size={38}
-                style={{
-                  background: 'var(--color-primary)',
-                  color: '#fff',
-                  fontWeight: 600,
-                }}
-              >
-                {initials}
-              </Avatar>
-              <div style={{ lineHeight: 1.25, overflow: 'hidden' }}>
-                <div
-                  style={{
-                    fontWeight: 600,
-                    color: 'var(--color-ink)',
-                    fontSize: 14,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  {displayName}
-                </div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: '0.18em',
-                    textTransform: 'uppercase',
-                    color: 'var(--color-muted)',
-                  }}
-                >
-                  HỆ THỐNG KHO
-                </div>
-              </div>
+              {displayName}
             </div>
             <div
               style={{
-                height: 1,
-                background: 'var(--color-divider)',
-                margin: '4px 0 10px',
-              }}
-            />
-            <button
-              type="button"
-              onClick={handleLogout}
-              style={{
-                border: 0,
-                background: 'transparent',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                color: 'var(--color-text)',
-                fontSize: 13,
-                padding: 0,
+                fontSize: 10,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--color-muted)',
               }}
             >
-              <LogoutOutlined style={{ color: 'var(--color-primary)' }} />
-              <span>Đăng xuất</span>
-            </button>
+              HỆ THỐNG KHO
+            </div>
           </div>
-        </Sider>
+        </div>
+        <div
+          style={{
+            height: 1,
+            background: 'var(--color-divider)',
+            margin: '4px 0 10px',
+          }}
+        />
+        <button
+          type="button"
+          onClick={handleLogout}
+          style={{
+            border: 0,
+            background: 'transparent',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            color: 'var(--color-text)',
+            fontSize: 13,
+            padding: 0,
+          }}
+        >
+          <LogoutOutlined style={{ color: 'var(--color-primary)' }} />
+          <span>Đăng xuất</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <AuthGuard role="WAREHOUSE_STAFF">
+      <Layout style={{ minHeight: '100vh', background: 'var(--color-soft)' }}>
+        {/* Desktop sider — visible >= lg */}
+        {!isCompact && (
+          <Sider
+            theme="light"
+            width={260}
+            style={{
+              background: '#fff',
+              borderRight: '1px solid var(--color-divider)',
+              position: 'sticky',
+              top: 0,
+              height: '100vh',
+              overflow: 'hidden',
+            }}
+          >
+            {sidebarBody}
+          </Sider>
+        )}
+
+        {/* Mobile / tablet drawer */}
+        {isCompact && (
+          <Drawer
+            open={navOpen}
+            placement="left"
+            onClose={() => setNavOpen(false)}
+            width={280}
+            closeIcon={<CloseOutlined />}
+            styles={{
+              body: { padding: 0 },
+              header: { display: 'none' },
+            }}
+          >
+            {sidebarBody}
+          </Drawer>
+        )}
+
         <Layout style={{ background: 'var(--color-soft)' }}>
           <div
             style={{
               background: '#fff',
               borderBottom: '1px solid var(--color-divider)',
-              padding: '14px 32px',
+              padding: isSmDown ? '10px 12px' : isCompact ? '12px 16px' : '14px 32px',
               display: 'flex',
               alignItems: 'center',
-              gap: 18,
+              gap: isCompact ? 8 : 18,
             }}
           >
-            <Input
-              prefix={<SearchOutlined style={{ color: 'var(--color-muted)' }} />}
-              placeholder="Tìm mã đơn hàng hoặc khách hàng..."
+            {isCompact && (
+              <button
+                type="button"
+                aria-label="menu"
+                onClick={() => setNavOpen(true)}
+                style={iconButtonSquareStyle}
+              >
+                <MenuOutlined />
+              </button>
+            )}
+
+            {isMdDown ? (
+              <div style={{ flex: 1 }} />
+            ) : (
+              <Input
+                prefix={<SearchOutlined style={{ color: 'var(--color-muted)' }} />}
+                placeholder="Tìm mã đơn hàng hoặc khách hàng..."
+                style={{
+                  maxWidth: 520,
+                  flex: 1,
+                  height: 40,
+                  borderRadius: 999,
+                  background: 'var(--color-soft)',
+                  border: '1px solid var(--color-divider)',
+                }}
+              />
+            )}
+
+            {!isMdDown && <div style={{ flex: 1 }} />}
+
+            <div
               style={{
-                maxWidth: 520,
-                flex: 1,
-                height: 40,
-                borderRadius: 999,
-                background: 'var(--color-soft)',
-                border: '1px solid var(--color-divider)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: isSmDown ? 6 : 10,
               }}
-            />
-            <div style={{ flex: 1 }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            >
+              {isMdDown && (
+                <button
+                  type="button"
+                  aria-label="Tìm kiếm"
+                  onClick={() => setSearchOpen(true)}
+                  style={iconButtonSquareStyle}
+                >
+                  <SearchOutlined />
+                </button>
+              )}
+
               <IconButton icon={<BellOutlined />} />
-              <IconButton icon={<SettingOutlined />} />
-              <IconButton icon={<QuestionCircleOutlined />} />
+              {!isSmDown && (
+                <>
+                  <IconButton icon={<SettingOutlined />} />
+                  <IconButton icon={<QuestionCircleOutlined />} />
+                </>
+              )}
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  paddingLeft: 14,
+                  paddingLeft: isSmDown ? 8 : 14,
                   borderLeft: '1px solid var(--color-divider)',
-                  marginLeft: 6,
+                  marginLeft: isSmDown ? 2 : 6,
                 }}
               >
                 <Avatar
@@ -283,34 +369,44 @@ export function StaffLayout({ children }: { children: ReactNode }) {
                 >
                   {initials}
                 </Avatar>
-                <div style={{ lineHeight: 1.2 }}>
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'var(--color-ink)',
-                      display: 'block',
-                    }}
-                  >
-                    {displayName}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      letterSpacing: '0.15em',
-                      textTransform: 'uppercase',
-                      color: 'var(--color-muted)',
-                    }}
-                  >
-                    HỆ THỐNG KHO
-                  </Text>
-                </div>
+                {!isSmDown && (
+                  <div style={{ lineHeight: 1.2 }}>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: 'var(--color-ink)',
+                        display: 'block',
+                        maxWidth: 140,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {displayName}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        letterSpacing: '0.15em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-muted)',
+                      }}
+                    >
+                      HỆ THỐNG KHO
+                    </Text>
+                  </div>
+                )}
               </div>
             </div>
           </div>
           <Content
             style={{
-              padding: '28px 32px 48px',
+              padding: isSmDown
+                ? '16px 12px 32px'
+                : isCompact
+                  ? '20px 16px 40px'
+                  : '28px 32px 48px',
               background: 'var(--color-soft)',
               overflow: 'auto',
             }}
@@ -353,6 +449,23 @@ export function StaffLayout({ children }: { children: ReactNode }) {
             {children}
           </Content>
         </Layout>
+
+        {/* Mobile / tablet search modal */}
+        <Modal
+          title="Tìm kiếm"
+          open={searchOpen}
+          onCancel={() => setSearchOpen(false)}
+          footer={null}
+          destroyOnHidden
+        >
+          <Input
+            autoFocus
+            size="large"
+            prefix={<SearchOutlined style={{ color: 'var(--color-muted)' }} />}
+            placeholder="Tìm mã đơn hàng hoặc khách hàng..."
+            allowClear
+          />
+        </Modal>
       </Layout>
     </AuthGuard>
   );
@@ -362,22 +475,24 @@ function IconButton({ icon }: { icon: ReactNode }) {
   return (
     <button
       type="button"
-      style={{
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        border: '1px solid var(--color-divider)',
-        background: '#fff',
-        cursor: 'pointer',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--color-text)',
-        fontSize: 15,
-      }}
+      style={iconButtonSquareStyle}
     >
       {icon}
     </button>
   );
 }
 
+const iconButtonSquareStyle: CSSProperties = {
+  width: 36,
+  height: 36,
+  borderRadius: 10,
+  border: '1px solid var(--color-divider)',
+  background: '#fff',
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--color-text)',
+  fontSize: 15,
+  flex: '0 0 auto',
+};

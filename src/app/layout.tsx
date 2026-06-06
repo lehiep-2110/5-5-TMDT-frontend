@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Lora, Be_Vietnam_Pro } from 'next/font/google';
 import { Providers } from '@/lib/providers';
 import './globals.css';
@@ -21,6 +21,13 @@ const beVietnam = Be_Vietnam_Pro({
 export const metadata: Metadata = {
   title: 'The Editorial',
   description: 'Nơi hội tụ những giá trị tri thức vượt thời gian.',
+};
+
+// Explicit mobile viewport — ensures correct scaling on phones/tablets while
+// still allowing users to pinch-zoom (no maximumScale lock for accessibility).
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 // App is fully auth-gated + data-driven; skip static prerender to avoid

@@ -1,16 +1,18 @@
 'use client';
 
-import { Avatar, Badge, Input, Layout, Menu, Tag } from 'antd';
+import { Avatar, Badge, Drawer, Input, Layout, Menu, Modal } from 'antd';
 import {
   AppstoreOutlined,
   BankOutlined,
   BarChartOutlined,
   BellOutlined,
   BookOutlined,
+  CloseOutlined,
   DashboardOutlined,
   FolderOpenOutlined,
   InboxOutlined,
   LogoutOutlined,
+  MenuOutlined,
   QuestionCircleOutlined,
   SearchOutlined,
   SettingOutlined,
@@ -21,11 +23,12 @@ import {
 } from '@ant-design/icons';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { AuthGuard } from './auth-guard';
 import { useAuthStore } from '@/lib/auth-store';
 import { useLogout } from '@/lib/auth-hooks';
 import { EditorialLogo } from '@/components/editorial';
+import { useResponsive } from '@/lib/use-responsive';
 
 const { Header, Sider, Content } = Layout;
 
@@ -44,6 +47,7 @@ const ROUTE_KEYS = [
   '/admin/publishers',
   '/admin/categories',
   '/admin/vouchers',
+  '/admin/notifications',
 ];
 
 export function AdminLayout({ children }: AdminLayoutProps) {
@@ -51,6 +55,18 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const pathname = usePathname() ?? '';
   const user = useAuthStore((s) => s.user);
   const logout = useLogout();
+  const { screens, isSmDown } = useResponsive();
+  const isCompact = !screens.lg;
+  const isMdDown = !screens.lg; // hide pill search at md and down
+
+  const [navOpen, setNavOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Close drawer on route change.
+  useEffect(() => {
+    setNavOpen(false);
+    setSearchOpen(false);
+  }, [pathname]);
 
   const selectedKey = useMemo(() => {
     const matches = ROUTE_KEYS.filter((k) => pathname.startsWith(k));
@@ -89,26 +105,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       label: <Link href="/admin/users">Khách hàng</Link>,
     },
     {
+      key: '/admin/notifications',
+      icon: <BellOutlined />,
+      label: <Link href="/admin/notifications">Gửi thông báo</Link>,
+    },
+    {
       key: 'reports',
       icon: <BarChartOutlined />,
-      label: (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: 'var(--color-muted)' }}>Báo cáo</span>
-          <Tag
-            style={{
-              marginInlineEnd: 0,
-              fontSize: 10,
-              background: '#F7F5F2',
-              color: '#8A8A8A',
-              border: 'none',
-              padding: '0 6px',
-            }}
-          >
-            Sắp ra mắt
-          </Tag>
-        </span>
-      ),
-      disabled: true,
+      label: <Link href="/admin/reports">Báo cáo chi tiết</Link>,
     },
     {
       key: 'catalog-group',
@@ -144,166 +148,222 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     selectedKey === '/admin/publishers' ||
     selectedKey === '/admin/categories';
 
+  // The sider body content is reused inside the Drawer when on mobile.
+  const sidebarBody = (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+      }}
+    >
+      {/* Brand header */}
+      <div
+        style={{
+          padding: '24px 24px 20px',
+          borderBottom: '1px solid var(--color-divider)',
+        }}
+      >
+        <EditorialLogo size="md" subtitle="Hệ thống quản trị" />
+      </div>
+
+      {/* Menu */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
+        <Menu
+          mode="inline"
+          selectedKeys={[selectedKey]}
+          defaultOpenKeys={isCatalogRoute ? ['catalog-group'] : []}
+          items={menuItems}
+          onClick={() => setNavOpen(false)}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            fontSize: 14,
+          }}
+          className="admin-sider-menu"
+        />
+      </div>
+
+      {/* User footer */}
+      <div
+        style={{
+          borderTop: '1px solid var(--color-divider)',
+          padding: '16px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <Avatar
+            size={40}
+            icon={<UserOutlined />}
+            style={{
+              background: 'rgba(200,16,46,0.1)',
+              color: 'var(--color-primary)',
+            }}
+          />
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontWeight: 600,
+                fontSize: 14,
+                color: 'var(--color-ink)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {user?.fullName ?? 'Quản Trị Viên'}
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--color-muted)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Administrator
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 10px',
+            border: '1px solid var(--color-divider)',
+            background: '#fff',
+            borderRadius: 8,
+            cursor: 'pointer',
+            color: 'var(--color-text)',
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          <LogoutOutlined />
+          <span>Đăng xuất</span>
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <AuthGuard role="ADMIN">
       <Layout style={{ minHeight: '100vh', background: 'var(--color-soft)' }}>
-        <Sider
-          width={260}
-          breakpoint="lg"
-          collapsedWidth={0}
-          trigger={null}
-          style={{
-            background: '#fff',
-            borderRight: '1px solid var(--color-divider)',
-            position: 'sticky',
-            top: 0,
-            height: '100vh',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <div
+        {/* Desktop sider — visible >= lg */}
+        {!isCompact && (
+          <Sider
+            width={260}
+            collapsedWidth={0}
+            trigger={null}
             style={{
+              background: '#fff',
+              borderRight: '1px solid var(--color-divider)',
+              position: 'sticky',
+              top: 0,
+              height: '100vh',
+              overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
-              height: '100vh',
             }}
           >
-            {/* Brand header */}
-            <div
-              style={{
-                padding: '24px 24px 20px',
-                borderBottom: '1px solid var(--color-divider)',
-              }}
-            >
-              <EditorialLogo size="md" subtitle="Hệ thống quản trị" />
-            </div>
+            <div style={{ height: '100vh' }}>{sidebarBody}</div>
+          </Sider>
+        )}
 
-            {/* Menu */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
-              <Menu
-                mode="inline"
-                selectedKeys={[selectedKey]}
-                defaultOpenKeys={isCatalogRoute ? ['catalog-group'] : []}
-                items={menuItems}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  fontSize: 14,
-                }}
-                className="admin-sider-menu"
-              />
-            </div>
+        {/* Mobile / tablet drawer */}
+        {isCompact && (
+          <Drawer
+            open={navOpen}
+            placement="left"
+            onClose={() => setNavOpen(false)}
+            width={280}
+            closeIcon={<CloseOutlined />}
+            styles={{
+              body: { padding: 0 },
+              header: { display: 'none' },
+            }}
+          >
+            {sidebarBody}
+          </Drawer>
+        )}
 
-            {/* User footer */}
-            <div
-              style={{
-                borderTop: '1px solid var(--color-divider)',
-                padding: '16px 20px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                }}
-              >
-                <Avatar
-                  size={40}
-                  icon={<UserOutlined />}
-                  style={{
-                    background: 'rgba(200,16,46,0.1)',
-                    color: 'var(--color-primary)',
-                  }}
-                />
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: 14,
-                      color: 'var(--color-ink)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {user?.fullName ?? 'Quản Trị Viên'}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--color-muted)',
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    Administrator
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleLogout}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 10px',
-                  border: '1px solid var(--color-divider)',
-                  background: '#fff',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  color: 'var(--color-text)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                }}
-              >
-                <LogoutOutlined />
-                <span>Đăng xuất</span>
-              </button>
-            </div>
-          </div>
-        </Sider>
         <Layout style={{ background: 'var(--color-soft)' }}>
           <Header
             style={{
               background: '#fff',
               borderBottom: '1px solid var(--color-divider)',
-              padding: '0 24px',
-              height: 72,
+              padding: isSmDown ? '0 12px' : isCompact ? '0 16px' : '0 24px',
+              height: isCompact ? 60 : 72,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: 16,
+              gap: isCompact ? 8 : 16,
             }}
           >
-            <div style={{ flex: 1, maxWidth: 560 }}>
-              <Input
-                size="large"
-                prefix={
-                  <SearchOutlined style={{ color: 'var(--color-muted)' }} />
-                }
-                placeholder="Tìm kiếm tác giả, tựa sách hoặc mã đơn hàng..."
-                style={{
-                  borderRadius: 999,
-                  background: 'var(--color-soft)',
-                  border: '1px solid var(--color-divider)',
-                }}
-                allowClear
-              />
-            </div>
+            {/* Hamburger trigger (compact only) */}
+            {isCompact && (
+              <button
+                type="button"
+                aria-label="menu"
+                onClick={() => setNavOpen(true)}
+                style={iconButtonStyle}
+              >
+                <MenuOutlined />
+              </button>
+            )}
+
+            {/* Search pill (desktop) OR icon (mobile/tablet) */}
+            {isMdDown ? (
+              <div style={{ flex: 1 }} />
+            ) : (
+              <div style={{ flex: 1, maxWidth: 560 }}>
+                <Input
+                  size="large"
+                  prefix={
+                    <SearchOutlined style={{ color: 'var(--color-muted)' }} />
+                  }
+                  placeholder="Tìm kiếm tác giả, tựa sách hoặc mã đơn hàng..."
+                  style={{
+                    borderRadius: 999,
+                    background: 'var(--color-soft)',
+                    border: '1px solid var(--color-divider)',
+                  }}
+                  allowClear
+                />
+              </div>
+            )}
+
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 12,
+                gap: isSmDown ? 6 : 12,
               }}
             >
+              {/* Search icon (md and down) */}
+              {isMdDown && (
+                <button
+                  type="button"
+                  aria-label="Tìm kiếm"
+                  onClick={() => setSearchOpen(true)}
+                  style={iconButtonStyle}
+                >
+                  <SearchOutlined />
+                </button>
+              )}
+
               <Badge dot color="#C8102E" offset={[-4, 4]}>
                 <button
                   type="button"
@@ -313,65 +373,78 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                   <BellOutlined />
                 </button>
               </Badge>
-              <button
-                type="button"
-                aria-label="Cài đặt"
-                style={iconButtonStyle}
-              >
-                <SettingOutlined />
-              </button>
-              <button
-                type="button"
-                aria-label="Trợ giúp"
-                style={iconButtonStyle}
-              >
-                <QuestionCircleOutlined />
-              </button>
+
+              {/* Hide gear + help on very small screens */}
+              {!isSmDown && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Cài đặt"
+                    style={iconButtonStyle}
+                  >
+                    <SettingOutlined />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Trợ giúp"
+                    style={iconButtonStyle}
+                  >
+                    <QuestionCircleOutlined />
+                  </button>
+                </>
+              )}
+
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  paddingLeft: 12,
+                  paddingLeft: isSmDown ? 8 : 12,
                   borderLeft: '1px solid var(--color-divider)',
                   marginLeft: 4,
                 }}
               >
                 <Avatar
-                  size={36}
+                  size={isSmDown ? 32 : 36}
                   icon={<UserOutlined />}
                   style={{
                     background: 'rgba(200,16,46,0.1)',
                     color: 'var(--color-primary)',
                   }}
                 />
-                <div style={{ lineHeight: 1.2 }}>
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: 13,
-                      color: 'var(--color-ink)',
-                    }}
-                  >
-                    {user?.fullName ?? 'Quản trị'}
+                {!isSmDown && (
+                  <div style={{ lineHeight: 1.2 }}>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        fontSize: 13,
+                        color: 'var(--color-ink)',
+                        maxWidth: 140,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {user?.fullName ?? 'Quản trị'}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--color-muted)',
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Admin
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--color-muted)',
-                      letterSpacing: '0.06em',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    Admin
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </Header>
           <Content
             style={{
-              padding: 24,
+              padding: isSmDown ? 12 : isCompact ? 16 : 24,
               background: 'var(--color-soft)',
               overflow: 'auto',
             }}
@@ -379,6 +452,24 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             {children}
           </Content>
         </Layout>
+
+        {/* Mobile / tablet search modal */}
+        <Modal
+          title="Tìm kiếm"
+          open={searchOpen}
+          onCancel={() => setSearchOpen(false)}
+          footer={null}
+          destroyOnHidden
+        >
+          <Input
+            autoFocus
+            size="large"
+            prefix={<SearchOutlined style={{ color: 'var(--color-muted)' }} />}
+            placeholder="Tìm kiếm tác giả, tựa sách hoặc mã đơn hàng..."
+            allowClear
+          />
+        </Modal>
+
         <style jsx global>{`
           .admin-sider-menu .ant-menu-item,
           .admin-sider-menu .ant-menu-submenu-title {
@@ -418,7 +509,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   );
 }
 
-const iconButtonStyle: React.CSSProperties = {
+const iconButtonStyle: CSSProperties = {
   width: 40,
   height: 40,
   borderRadius: 999,
@@ -430,4 +521,5 @@ const iconButtonStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   fontSize: 16,
+  flex: '0 0 auto',
 };

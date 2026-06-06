@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Layout } from 'antd';
 import type { CSSProperties } from 'react';
 import { EditorialLogo } from '@/components/editorial';
+import { useResponsive } from '@/lib/use-responsive';
 
 const { Footer } = Layout;
 
@@ -26,22 +27,26 @@ const SUPPORT: FooterLink[] = [
 const PAYMENTS = ['VISA', 'MOMO', 'VNPAY'];
 
 export function PublicFooter() {
+  const { isMobile, isSmDown } = useResponsive();
+
   const footerStyle: CSSProperties = {
     background: '#fff',
     color: 'var(--color-text)',
-    padding: '56px 0 32px',
+    padding: isMobile ? '40px 0 24px' : '56px 0 32px',
     borderTop: '1px solid var(--color-divider)',
   };
   const innerStyle: CSSProperties = {
     maxWidth: 1280,
     margin: '0 auto',
-    padding: '0 24px',
+    padding: isSmDown ? '0 12px' : isMobile ? '0 16px' : '0 24px',
   };
   const gridStyle: CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: 40,
-    marginBottom: 40,
+    gridTemplateColumns: isMobile
+      ? '1fr'
+      : 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: isMobile ? 24 : 40,
+    marginBottom: isMobile ? 24 : 40,
   };
   const titleStyle: CSSProperties = {
     fontSize: 12,
@@ -123,16 +128,19 @@ export function PublicFooter() {
               </Link>
             ))}
           </div>
-          <div>
-            <div style={titleStyle}>Thanh toán</div>
+          {/* Hide the payment chips block on very small screens to save room. */}
+          {!isSmDown && (
             <div>
-              {PAYMENTS.map((p) => (
-                <span key={p} style={chipStyle}>
-                  {p}
-                </span>
-              ))}
+              <div style={titleStyle}>Thanh toán</div>
+              <div>
+                {PAYMENTS.map((p) => (
+                  <span key={p} style={chipStyle}>
+                    {p}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
         <div style={dividerStyle} />
         <div style={bottomStyle}>

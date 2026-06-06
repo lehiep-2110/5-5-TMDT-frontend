@@ -11,7 +11,7 @@ import {
   ShoppingOutlined,
 } from '@ant-design/icons';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, unwrap } from '@/lib/api';
 import { BookCard } from '@/components/book-card';
 import { BookCardSkeleton } from '@/components/book-card-skeleton';
@@ -22,18 +22,20 @@ import {
 } from '@/components/editorial';
 import { formatVnd } from '@/lib/format';
 import { resolveImageUrl } from '@/lib/image-url';
+import { useResponsive } from '@/lib/use-responsive';
 import type { BookListItem, Category, PageEnvelope } from '@/lib/types';
 
 /* --------------------------------------------------------------------------
  * HERO
  * ------------------------------------------------------------------------ */
 function EditorialHero() {
+  const { isSmDown } = useResponsive();
   return (
     <section
       style={{
         background: 'var(--color-soft)',
         borderRadius: 16,
-        padding: 'clamp(32px, 5vw, 56px)',
+        padding: 'clamp(24px, 5vw, 56px)',
         marginTop: 8,
         overflow: 'hidden',
       }}
@@ -49,7 +51,7 @@ function EditorialHero() {
           <h1
             style={{
               fontFamily: 'var(--font-serif), Georgia, serif',
-              fontSize: 'clamp(36px, 5vw, 56px)',
+              fontSize: 'clamp(28px, 6vw, 56px)',
               fontWeight: 700,
               lineHeight: 1.1,
               letterSpacing: '-0.015em',
@@ -57,7 +59,7 @@ function EditorialHero() {
               color: 'var(--color-ink)',
             }}
           >
-            Ngày hội sách 2024
+            Ngày hội sách 2026
           </h1>
           <p
             style={{
@@ -89,30 +91,33 @@ function EditorialHero() {
             </Button>
           </div>
         </Col>
-        <Col xs={24} md={12}>
-          <div
-            style={{
-              position: 'relative',
-              borderRadius: 16,
-              overflow: 'hidden',
-              aspectRatio: '4 / 3',
-              background: '#fff',
-              boxShadow: '0 18px 60px rgba(26,26,26,0.14)',
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="https://images.unsplash.com/photo-1512820790803-83ca734da794?w=900&q=60"
-              alt="Ngày hội sách 2024"
+        {/* Hide hero image on extra-small screens to save real estate. */}
+        {isSmDown ? null : (
+          <Col xs={24} md={12}>
+            <div
               style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                display: 'block',
+                position: 'relative',
+                borderRadius: 16,
+                overflow: 'hidden',
+                aspectRatio: '4 / 3',
+                background: '#fff',
+                boxShadow: '0 18px 60px rgba(26,26,26,0.14)',
               }}
-            />
-          </div>
-        </Col>
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://images.unsplash.com/photo-1512820790803-83ca734da794?w=900&q=60"
+                alt="Ngày hội sách 2026"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
+              />
+            </div>
+          </Col>
+        )}
       </Row>
     </section>
   );
@@ -321,7 +326,36 @@ function FlashSaleFeatured({ book }: { book: BookListItem }) {
   );
 }
 
+function useCountdownToEndOfDay() {
+  const [time, setTime] = useState({ h: '00', m: '00', s: '00' });
+
+  useEffect(() => {
+    const compute = () => {
+      const now = new Date();
+      const end = new Date(now);
+      end.setHours(23, 59, 59, 999);
+      let diff = Math.max(0, end.getTime() - now.getTime());
+      const h = Math.floor(diff / 3_600_000);
+      diff -= h * 3_600_000;
+      const m = Math.floor(diff / 60_000);
+      diff -= m * 60_000;
+      const s = Math.floor(diff / 1000);
+      setTime({
+        h: String(h).padStart(2, '0'),
+        m: String(m).padStart(2, '0'),
+        s: String(s).padStart(2, '0'),
+      });
+    };
+    compute();
+    const id = setInterval(compute, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return time;
+}
+
 function FlashSaleSection({ books }: { books: BookListItem[] }) {
+  const countdown = useCountdownToEndOfDay();
   if (books.length === 0) return null;
   const featured = books[0];
   const rest = books.slice(1, 3);
@@ -341,7 +375,7 @@ function FlashSaleSection({ books }: { books: BookListItem[] }) {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <CountdownChip value="02" unit="Giờ" />
+              <CountdownChip value={countdown.h} unit="Giờ" />
               <span
                 style={{
                   color: 'var(--color-muted)',
@@ -351,7 +385,7 @@ function FlashSaleSection({ books }: { books: BookListItem[] }) {
               >
                 :
               </span>
-              <CountdownChip value="45" unit="Phút" />
+              <CountdownChip value={countdown.m} unit="Phút" />
               <span
                 style={{
                   color: 'var(--color-muted)',
@@ -361,7 +395,7 @@ function FlashSaleSection({ books }: { books: BookListItem[] }) {
               >
                 :
               </span>
-              <CountdownChip value="12" unit="Giây" />
+              <CountdownChip value={countdown.s} unit="Giây" />
             </div>
             <Link
               href="/books?sort=newest"
@@ -407,6 +441,7 @@ const FALLBACK_CATEGORY_ICONS = [
 ];
 
 function FeaturedCategories() {
+  const { isMobile } = useResponsive();
   const { data } = useQuery({
     queryKey: ['home-categories'],
     queryFn: async () => {
@@ -416,6 +451,47 @@ function FeaturedCategories() {
   });
   const items = (data ?? []).slice(0, 5);
   if (items.length === 0) return null;
+
+  // On mobile use a horizontally-scrollable strip so chips remain a single row.
+  if (isMobile) {
+    return (
+      <section style={{ marginTop: 56 }}>
+        <SectionHeading
+          eyebrow="Duyệt theo sở thích"
+          title="Danh mục nổi bật"
+          subtitle="Những chủ đề được bạn đọc The Editorial quan tâm nhất trong tháng."
+          align="center"
+        />
+        <div
+          style={{
+            display: 'flex',
+            gap: 12,
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            paddingBottom: 6,
+            // Negative margin pulls the scroll container to the page gutter so
+            // the user can see content extending past the edge.
+            marginLeft: -4,
+            marginRight: -4,
+            paddingLeft: 4,
+            paddingRight: 4,
+          }}
+        >
+          {items.map((c, i) => (
+            <div key={c.id} style={{ flex: '0 0 auto' }}>
+              <CategoryChip
+                icon={
+                  FALLBACK_CATEGORY_ICONS[i % FALLBACK_CATEGORY_ICONS.length]
+                }
+                label={c.name}
+                href={`/books?categoryId=${c.id}`}
+              />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section style={{ marginTop: 72 }}>

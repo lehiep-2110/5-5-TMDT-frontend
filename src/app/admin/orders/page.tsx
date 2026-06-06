@@ -11,7 +11,9 @@ import {
   Drawer,
   Dropdown,
   Input,
+  List,
   Modal,
+  Pagination,
   Select,
   Space,
   Table,
@@ -20,6 +22,7 @@ import {
   Tooltip,
   Typography,
 } from 'antd';
+import { useResponsive } from '@/lib/use-responsive';
 import {
   CloseOutlined,
   DownOutlined,
@@ -138,6 +141,8 @@ function cardStyle(): React.CSSProperties {
 export default function AdminOrdersPage() {
   const { message } = AntdApp.useApp();
   const queryClient = useQueryClient();
+  const { isMobile, screens } = useResponsive();
+  const isLgDown = !screens.lg;
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([
@@ -309,11 +314,11 @@ export default function AdminOrdersPage() {
       <div
         style={{
           ...cardStyle(),
-          padding: 20,
+          padding: isMobile ? 16 : 20,
           marginBottom: 20,
           display: 'grid',
-          gridTemplateColumns: '2fr 1fr',
-          gap: 24,
+          gridTemplateColumns: isLgDown ? '1fr' : '2fr 1fr',
+          gap: isMobile ? 16 : 24,
         }}
       >
         <div>
@@ -407,7 +412,82 @@ export default function AdminOrdersPage() {
       </div>
 
       {/* Table */}
-      <div style={{ ...cardStyle(), padding: 8, marginBottom: 24 }}>
+      <div style={{ ...cardStyle(), padding: isMobile ? 12 : 8, marginBottom: 24 }}>
+        {isMobile ? (
+          <>
+            <List<AdminOrderRow>
+              loading={listQ.isLoading}
+              dataSource={listQ.data?.items ?? []}
+              rowKey="id"
+              renderItem={(row) => (
+                <List.Item
+                  key={row.id}
+                  style={{
+                    padding: 12,
+                    marginBottom: 8,
+                    border: '1px solid var(--color-divider)',
+                    borderRadius: 10,
+                    display: 'block',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => openRow(row.id)}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ color: 'var(--color-primary)', fontWeight: 700 }}>
+                      {row.orderCode}
+                    </span>
+                    <OrderStatusTag status={row.status} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                    <Avatar
+                      size={28}
+                      icon={<UserOutlined />}
+                      style={{ background: 'rgba(200,16,46,0.1)', color: 'var(--color-primary)' }}
+                    />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--color-ink)', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {row.userFullName ?? '—'}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--color-muted)' }}>
+                        {dayjs(row.createdAt).format('DD/MM/YYYY HH:mm')}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                    <strong style={{ color: 'var(--color-ink)' }}>{formatVnd(row.totalAmount)}</strong>
+                    {paymentMethodTag(row.paymentMethod)}
+                  </div>
+                  {(row.status === 'PENDING' || row.status === 'CONFIRMED') && (
+                    <div style={{ marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="small"
+                        type="primary"
+                        block
+                        onClick={() => {
+                          setSelectedId(row.id);
+                          setPendingNext(row.status === 'PENDING' ? 'CONFIRMED' : 'PROCESSING');
+                          setPendingNote('');
+                          setConfirmOpen(true);
+                        }}
+                      >
+                        Xác nhận
+                      </Button>
+                    </div>
+                  )}
+                </List.Item>
+              )}
+            />
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
+              <Pagination
+                simple
+                current={page}
+                pageSize={PAGE_SIZE}
+                total={listQ.data?.total ?? 0}
+                onChange={(p) => setPage(p)}
+              />
+            </div>
+          </>
+        ) : (
         <Table<AdminOrderRow>
           rowKey="id"
           loading={listQ.isLoading}
@@ -419,6 +499,7 @@ export default function AdminOrdersPage() {
             showSizeChanger: false,
             onChange: (p) => setPage(p),
           }}
+          scroll={{ x: 1100 }}
           onRow={(row) => ({
             onClick: () => openRow(row.id),
             style: { cursor: 'pointer' },
@@ -549,13 +630,14 @@ export default function AdminOrdersPage() {
             },
           ]}
         />
+        )}
       </div>
 
       {/* Bottom helper panels */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
+          gridTemplateColumns: isLgDown ? '1fr' : '1fr 1fr',
           gap: 16,
         }}
       >
@@ -675,7 +757,7 @@ export default function AdminOrdersPage() {
         title={detail ? `Đơn ${detail.orderCode}` : 'Chi tiết đơn'}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        width={720}
+        width={isMobile ? '100%' : 720}
         loading={detailQ.isLoading}
       >
         {detail ? (

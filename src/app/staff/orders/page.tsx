@@ -9,6 +9,7 @@ import {
   Typography,
 } from 'antd';
 import {
+  ArrowLeftOutlined,
   InboxOutlined,
   ThunderboltOutlined,
   WarningOutlined,
@@ -20,6 +21,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, extractErrorMessage, unwrap } from '@/lib/api';
 import type { OrderDetail, OrderStatus, PageEnvelope } from '@/lib/types';
 import { EmptyState, PageHeading } from '@/components/editorial';
+import { useResponsive } from '@/lib/use-responsive';
 
 dayjs.extend(relativeTime);
 dayjs.locale('vi');
@@ -40,6 +42,7 @@ interface StaffOrderRow {
 export default function StaffOrdersPage() {
   const { message } = AntdApp.useApp();
   const queryClient = useQueryClient();
+  const { isMobile } = useResponsive();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
 
@@ -62,13 +65,15 @@ export default function StaffOrdersPage() {
   }, [listQ.data?.items]);
 
   useEffect(() => {
-    if (!selectedId && items.length > 0) {
+    // On desktop, auto-select the first order so the detail panel is never empty.
+    // On mobile we use a drilldown pattern, so the user must explicitly pick one.
+    if (!isMobile && !selectedId && items.length > 0) {
       setSelectedId(items[0].id);
     }
     if (selectedId && !items.some((i) => i.id === selectedId)) {
-      setSelectedId(items[0]?.id ?? null);
+      setSelectedId(!isMobile ? items[0]?.id ?? null : null);
     }
-  }, [items, selectedId]);
+  }, [items, selectedId, isMobile]);
 
   const detailQ = useQuery({
     queryKey: ['staff-order-detail', selectedId],
@@ -113,19 +118,22 @@ export default function StaffOrdersPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(320px, 2fr) minmax(420px, 3fr)',
-          gap: 24,
+          gridTemplateColumns: isMobile
+            ? '1fr'
+            : 'minmax(320px, 2fr) minmax(420px, 3fr)',
+          gap: isMobile ? 16 : 24,
           alignItems: 'start',
         }}
       >
-        {/* LEFT: order list */}
+        {/* LEFT: order list — hidden on mobile when a detail is selected */}
+        {isMobile && selectedId ? null : (
         <section
           style={{
             background: '#fff',
             borderRadius: 12,
             border: '1px solid var(--color-divider)',
             boxShadow: '0 1px 2px rgba(26,26,26,0.04)',
-            padding: 20,
+            padding: isMobile ? 16 : 20,
             display: 'flex',
             flexDirection: 'column',
             gap: 14,
@@ -186,8 +194,8 @@ export default function StaffOrdersPage() {
               display: 'flex',
               flexDirection: 'column',
               gap: 10,
-              maxHeight: 'calc(100vh - 280px)',
-              overflowY: 'auto',
+              maxHeight: isMobile ? 'none' : 'calc(100vh - 280px)',
+              overflowY: isMobile ? 'visible' : 'auto',
               paddingRight: 4,
             }}
           >
@@ -329,18 +337,35 @@ export default function StaffOrdersPage() {
             )}
           </div>
         </section>
+        )}
 
-        {/* RIGHT: detail panel */}
+        {/* RIGHT: detail panel — hidden on mobile when no order is selected */}
+        {isMobile && !selectedId ? null : (
         <section
           style={{
             background: '#fff',
             borderRadius: 12,
             border: '1px solid var(--color-divider)',
             boxShadow: '0 1px 2px rgba(26,26,26,0.04)',
-            padding: 24,
-            minHeight: 480,
+            padding: isMobile ? 16 : 24,
+            minHeight: isMobile ? 'auto' : 480,
           }}
         >
+          {isMobile && selectedId ? (
+            <Button
+              type="link"
+              icon={<ArrowLeftOutlined />}
+              onClick={() => setSelectedId(null)}
+              style={{
+                padding: 0,
+                marginBottom: 12,
+                color: 'var(--color-primary)',
+                fontWeight: 500,
+              }}
+            >
+              Quay lại danh sách
+            </Button>
+          ) : null}
           {!detail || !selectedId ? (
             <EmptyState
               icon={<InboxOutlined />}
@@ -357,13 +382,15 @@ export default function StaffOrdersPage() {
                   paddingBottom: 14,
                   borderBottom: '1px solid var(--color-divider)',
                   marginBottom: 16,
+                  flexWrap: 'wrap',
+                  gap: 8,
                 }}
               >
                 <div>
                   <div
                     style={{
                       fontFamily: 'var(--font-serif), Georgia, serif',
-                      fontSize: 22,
+                      fontSize: isMobile ? 18 : 22,
                       fontWeight: 700,
                       color: 'var(--color-ink)',
                     }}
@@ -444,7 +471,8 @@ export default function StaffOrdersPage() {
                       key={it.id}
                       style={{
                         display: 'flex',
-                        gap: 14,
+                        flexWrap: 'wrap',
+                        gap: isMobile ? 10 : 14,
                         padding: 12,
                         border: '1px solid var(--color-divider)',
                         borderRadius: 10,
@@ -526,6 +554,7 @@ export default function StaffOrdersPage() {
                           display: 'flex',
                           alignItems: 'center',
                           gap: 12,
+                          marginLeft: isMobile ? 'auto' : 0,
                         }}
                       >
                         <Tag
@@ -659,6 +688,7 @@ export default function StaffOrdersPage() {
             </>
           )}
         </section>
+        )}
       </div>
     </div>
   );

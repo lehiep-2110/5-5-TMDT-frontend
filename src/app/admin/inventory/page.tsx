@@ -5,11 +5,14 @@ import {
   Button,
   Card,
   InputNumber,
+  List,
+  Pagination,
   Popover,
   Select,
   Table,
   Tag,
 } from 'antd';
+import { useResponsive } from '@/lib/use-responsive';
 import {
   AppstoreOutlined,
   BookOutlined,
@@ -110,6 +113,9 @@ function StockBar({ value, max }: { value: number; max: number }) {
 }
 
 export default function AdminInventoryPage() {
+  const { isMobile, screens } = useResponsive();
+  const isLgDown = !screens.lg;
+  const isMdDown = !screens.md;
   const [page, setPage] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>(
     undefined,
@@ -276,7 +282,11 @@ export default function AdminInventoryPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+          gridTemplateColumns: isMobile
+            ? '1fr'
+            : isLgDown
+            ? 'repeat(2, minmax(0, 1fr))'
+            : 'repeat(4, minmax(0, 1fr))',
           gap: 16,
           marginBottom: 24,
         }}
@@ -367,7 +377,84 @@ export default function AdminInventoryPage() {
       </div>
 
       {/* Table */}
-      <div style={{ ...cardStyle(), padding: 8, marginBottom: 24 }}>
+      <div style={{ ...cardStyle(), padding: isMobile ? 12 : 8, marginBottom: 24 }}>
+        {isMdDown ? (
+          <>
+            <List<InventoryBookItem>
+              loading={booksQ.isLoading}
+              dataSource={filteredRows}
+              rowKey="id"
+              renderItem={(row) => (
+                <List.Item
+                  style={{
+                    padding: 12,
+                    marginBottom: 8,
+                    border: '1px solid var(--color-divider)',
+                    borderRadius: 10,
+                    display: 'block',
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                    <BookCover src={row.primaryImage} alt={row.title} size="sm" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--color-ink)', fontFamily: 'var(--font-serif), Georgia, serif', fontSize: 14, marginBottom: 4 }}>
+                        {row.title}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--color-muted)', marginBottom: 8 }}>
+                        {row.authors?.map((a) => a.name).join(', ') || '—'}
+                      </div>
+                      <div style={{ marginBottom: 8 }}>
+                        <StockBar value={row.stockQuantity} max={100} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                        <strong style={{ color: 'var(--color-ink)' }}>{formatVnd(row.price)}</strong>
+                        {row.status === 'ACTIVE' ? (
+                          <Tag
+                            style={{
+                              background: 'rgba(47,133,90,0.1)',
+                              color: 'var(--color-success)',
+                              border: 'none',
+                              margin: 0,
+                            }}
+                          >
+                            Active
+                          </Tag>
+                        ) : (
+                          <Tag
+                            style={{
+                              background: 'rgba(138,138,138,0.1)',
+                              color: 'var(--color-muted)',
+                              border: 'none',
+                              margin: 0,
+                            }}
+                          >
+                            Inactive
+                          </Tag>
+                        )}
+                        <Link href="/admin/books">
+                          <Button
+                            type="text"
+                            icon={<EditOutlined />}
+                            aria-label="edit"
+                          />
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </List.Item>
+              )}
+            />
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
+              <Pagination
+                simple
+                current={page}
+                pageSize={PAGE_SIZE}
+                total={booksQ.data?.total ?? 0}
+                onChange={(p) => setPage(p)}
+              />
+            </div>
+          </>
+        ) : (
         <Table<InventoryBookItem>
           rowKey="id"
           loading={booksQ.isLoading}
@@ -538,13 +625,14 @@ export default function AdminInventoryPage() {
             },
           ]}
         />
+        )}
       </div>
 
       {/* Promo / help cards */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
+          gridTemplateColumns: isLgDown ? '1fr' : '1fr 1fr',
           gap: 16,
         }}
       >

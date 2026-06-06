@@ -8,13 +8,16 @@ import {
   Card,
   Form,
   Input,
+  List,
   Modal,
+  Pagination,
   Popconfirm,
   Space,
   Table,
   Upload,
 } from 'antd';
 import { PageHeading } from '@/components/editorial';
+import { useResponsive } from '@/lib/use-responsive';
 import type { UploadFile } from 'antd/es/upload/interface';
 import {
   DeleteOutlined,
@@ -49,6 +52,7 @@ interface AuthorFormValues {
 export default function AdminAuthorsPage() {
   const { message } = AntdApp.useApp();
   const queryClient = useQueryClient();
+  const { isMobile, isSmDown } = useResponsive();
 
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -134,12 +138,12 @@ export default function AdminAuthorsPage() {
         title="Tác giả"
         subtitle="Danh sách tác giả được đăng bán trên nền tảng."
         trailing={
-          <Space wrap>
+          <Space wrap style={isMobile ? { width: '100%' } : undefined}>
             <Input
               allowClear
               prefix={<SearchOutlined />}
               placeholder="Tìm theo tên..."
-              style={{ width: 280 }}
+              style={{ width: isMobile ? '100%' : 280 }}
               value={keywordInput}
               onChange={(e) => setKeywordInput(e.target.value)}
               onPressEnter={() => {
@@ -163,7 +167,69 @@ export default function AdminAuthorsPage() {
           borderRadius: 12,
           boxShadow: '0 1px 2px rgba(26,26,26,0.03)',
         }}
+        bodyStyle={isSmDown ? { padding: 12 } : undefined}
       >
+        {isSmDown ? (
+          <>
+            <List<Author>
+              loading={listQ.isLoading}
+              dataSource={listQ.data?.items ?? []}
+              rowKey="id"
+              renderItem={(row) => (
+                <List.Item
+                  style={{ padding: '12px 0', borderBottom: '1px solid var(--color-divider)' }}
+                  actions={[
+                    <Button
+                      key="edit"
+                      type="link"
+                      icon={<EditOutlined />}
+                      onClick={() => openEdit(row)}
+                    />,
+                    <Popconfirm
+                      key="del"
+                      title="Xoá tác giả này?"
+                      okText="Xoá"
+                      cancelText="Huỷ"
+                      onConfirm={() => deleteMutation.mutate(row.id)}
+                    >
+                      <Button type="link" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>,
+                  ]}
+                >
+                  <List.Item.Meta
+                    avatar={
+                      row.avatarUrl ? (
+                        <Avatar size={40} src={resolveImageUrl(row.avatarUrl)} />
+                      ) : (
+                        <Avatar size={40} icon={<UserOutlined />} />
+                      )
+                    }
+                    title={
+                      <div style={{ fontWeight: 600, color: 'var(--color-ink)' }}>
+                        {row.name}
+                      </div>
+                    }
+                    description={
+                      <div style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+                        {row.nationality ?? '—'}
+                        {row.biography ? ` · ${row.biography.slice(0, 60)}${row.biography.length > 60 ? '…' : ''}` : ''}
+                      </div>
+                    }
+                  />
+                </List.Item>
+              )}
+            />
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
+              <Pagination
+                simple
+                current={page}
+                pageSize={PAGE_SIZE}
+                total={listQ.data?.total ?? 0}
+                onChange={(p) => setPage(p)}
+              />
+            </div>
+          </>
+        ) : (
         <Table<Author>
           rowKey="id"
           loading={listQ.isLoading}
@@ -174,7 +240,9 @@ export default function AdminAuthorsPage() {
             total: listQ.data?.total ?? 0,
             showSizeChanger: false,
             onChange: (p) => setPage(p),
+            simple: isMobile,
           }}
+          scroll={{ x: 700 }}
           columns={[
             {
               title: 'Ảnh',
@@ -223,6 +291,7 @@ export default function AdminAuthorsPage() {
             },
           ]}
         />
+        )}
       </Card>
 
       <Modal

@@ -28,9 +28,11 @@ import {
   BookDetailSkeleton,
 } from '@/components/book-card-skeleton';
 import { SectionHeading } from '@/components/editorial';
+import { ReviewsTab } from './reviews-tab';
 import { resolveImageUrl } from '@/lib/image-url';
 import { formatVnd } from '@/lib/format';
 import { useAuthStore } from '@/lib/auth-store';
+import { useGuestCartStore } from '@/lib/guest-cart-store';
 import type { BookDetail, BookListItem, PageEnvelope } from '@/lib/types';
 
 const { Paragraph } = Typography;
@@ -40,6 +42,7 @@ export default function BookDetailPage() {
   const slug = params?.slug;
   const router = useRouter();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const addGuest = useGuestCartStore((s) => s.add);
   const { message } = AntdApp.useApp();
   const queryClient = useQueryClient();
 
@@ -131,9 +134,26 @@ export default function BookDetailPage() {
     ? book.breadcrumb.map((b) => b.name).join(' / ').toUpperCase()
     : (book.category?.name ?? 'SÁCH').toUpperCase();
 
+  const addToGuestCart = () => {
+    addGuest(
+      {
+        bookId: book.id,
+        slug: book.slug,
+        title: book.title,
+        price: book.price,
+        discountPrice: book.discountPrice,
+        primaryImage: book.primaryImage,
+        stockQuantity: book.stockQuantity,
+        status: book.status,
+      },
+      quantity,
+    );
+  };
+
   const handleAddToCart = () => {
     if (!accessToken) {
-      router.push(`/login?redirect=/books/${book.slug}`);
+      addToGuestCart();
+      message.success('Đã thêm vào giỏ hàng');
       return;
     }
     addToCart.mutate({ bookId: book.id, quantity });
@@ -141,7 +161,8 @@ export default function BookDetailPage() {
 
   const handleBuyNow = () => {
     if (!accessToken) {
-      router.push(`/login?redirect=/books/${book.slug}`);
+      addToGuestCart();
+      router.push('/checkout');
       return;
     }
     addToCart.mutate(
@@ -169,11 +190,14 @@ export default function BookDetailPage() {
 
       <Row gutter={[48, 32]}>
         {/* ------------------------ GALLERY ---------------------------- */}
-        <Col xs={24} md={13}>
+        <Col xs={24} lg={13}>
           <div
             style={{
               width: '100%',
               aspectRatio: '3 / 4',
+              // Constrain hero height on small screens so the page isn't
+              // dominated by the cover.
+              maxHeight: 'min(70vh, 480px)',
               background: 'var(--color-soft)',
               borderRadius: 16,
               display: 'flex',
@@ -252,7 +276,7 @@ export default function BookDetailPage() {
         </Col>
 
         {/* ------------------------ INFO ------------------------------- */}
-        <Col xs={24} md={11}>
+        <Col xs={24} lg={11}>
           <div
             className="eyebrow"
             style={{ marginBottom: 14, color: 'var(--color-muted)' }}
@@ -495,7 +519,7 @@ export default function BookDetailPage() {
             {
               key: 'reviews',
               label: `Đánh giá (${book.reviewCount})`,
-              children: <Empty description="Chức năng ra mắt phase 2" />,
+              children: <ReviewsTab slug={book.slug} />,
             },
           ]}
         />

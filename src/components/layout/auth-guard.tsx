@@ -29,7 +29,12 @@ export function AuthGuard({ children, role }: AuthGuardProps) {
   const hydrated = useAuthStore((s) => s.hydrated);
   const accessToken = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
-  const { isLoading } = useCurrentUser();
+  // Runs `/auth/me` in the background to refresh the cached user, but we
+  // don't block rendering on it. If the token is invalid, the axios 401
+  // interceptor will call `logout()` → `accessToken` becomes null → we
+  // redirect below. That avoids the stuck-skeleton state when /auth/me is
+  // slow or fails transiently.
+  const query = useCurrentUser();
 
   useEffect(() => {
     if (!hydrated) return;
@@ -43,7 +48,26 @@ export function AuthGuard({ children, role }: AuthGuardProps) {
     }
   }, [hydrated, accessToken, user, role, router, pathname]);
 
-  if (!hydrated || !accessToken || isLoading || !user) {
+  // Before hydration finishes, or while we've redirected a logged-out user.
+  if (!hydrated || !accessToken) {
+    return (
+      <div style={{ padding: 32 }}>
+        <Skeleton active paragraph={{ rows: 6 }} />
+      </div>
+    );
+  }
+
+  // First login in this browser, no cached user yet — wait for /auth/me.
+  if (!user) {
+    if (query.isError) {
+      // Token refused by server; the interceptor will clear auth → a rerender
+      // triggers the redirect above. Keep showing skeleton meanwhile.
+      return (
+        <div style={{ padding: 32 }}>
+          <Skeleton active paragraph={{ rows: 6 }} />
+        </div>
+      );
+    }
     return (
       <div style={{ padding: 32 }}>
         <Skeleton active paragraph={{ rows: 6 }} />

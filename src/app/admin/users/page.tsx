@@ -8,11 +8,15 @@ import {
   Card,
   Dropdown,
   Input,
+  List,
+  Pagination,
   Select,
   Space,
   Table,
   Tag,
 } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import { useResponsive } from '@/lib/use-responsive';
 import { DownOutlined, SearchOutlined, UserOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useState } from 'react';
@@ -41,35 +45,40 @@ interface UsersResp {
 const STATUS_OPTIONS: Array<{ value: UserStatus | 'ALL'; label: string }> = [
   { value: 'ALL', label: 'Tất cả trạng thái' },
   { value: 'ACTIVE', label: 'Đang hoạt động' },
-  { value: 'PENDING', label: 'Chưa xác thực' },
+  { value: 'PENDING_VERIFICATION', label: 'Chưa xác thực' },
   { value: 'LOCKED', label: 'Đã khoá' },
   { value: 'BANNED', label: 'Bị cấm' },
 ];
 
+const STATUS_CFG: Record<UserStatus, { label: string; bg: string; fg: string }> = {
+  ACTIVE: {
+    label: 'Hoạt động',
+    bg: 'rgba(47,133,90,0.1)',
+    fg: 'var(--color-success)',
+  },
+  PENDING_VERIFICATION: {
+    label: 'Chưa xác thực',
+    bg: 'rgba(217,119,6,0.12)',
+    fg: 'var(--color-warning)',
+  },
+  LOCKED: {
+    label: 'Đã khoá',
+    bg: 'rgba(138,138,138,0.12)',
+    fg: 'var(--color-muted)',
+  },
+  BANNED: {
+    label: 'Bị cấm',
+    bg: 'rgba(200,16,46,0.1)',
+    fg: 'var(--color-primary)',
+  },
+};
+
 function statusPill(status: UserStatus) {
-  const cfg: Record<UserStatus, { label: string; bg: string; fg: string }> = {
-    ACTIVE: {
-      label: 'Hoạt động',
-      bg: 'rgba(47,133,90,0.1)',
-      fg: 'var(--color-success)',
-    },
-    PENDING: {
-      label: 'Chưa xác thực',
-      bg: 'rgba(217,119,6,0.12)',
-      fg: 'var(--color-warning)',
-    },
-    LOCKED: {
-      label: 'Đã khoá',
-      bg: 'rgba(138,138,138,0.12)',
-      fg: 'var(--color-muted)',
-    },
-    BANNED: {
-      label: 'Bị cấm',
-      bg: 'rgba(200,16,46,0.1)',
-      fg: 'var(--color-primary)',
-    },
+  const s = STATUS_CFG[status] ?? {
+    label: String(status),
+    bg: 'rgba(138,138,138,0.12)',
+    fg: 'var(--color-muted)',
   };
-  const s = cfg[status];
   return (
     <Tag
       style={{
@@ -87,6 +96,8 @@ function statusPill(status: UserStatus) {
 export default function AdminUsersPage() {
   const { modal, message } = AntdApp.useApp();
   const queryClient = useQueryClient();
+  const { isMobile, screens, isSmDown } = useResponsive();
+  const isMdDown = !screens.md;
 
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -149,12 +160,12 @@ export default function AdminUsersPage() {
         title="Khách hàng"
         subtitle="Danh sách người mua trên nền tảng và trạng thái tài khoản."
         trailing={
-          <Space wrap>
+          <Space wrap style={isMobile ? { width: '100%' } : undefined}>
             <Input
               allowClear
               prefix={<SearchOutlined />}
               placeholder="Email hoặc tên..."
-              style={{ width: 280 }}
+              style={{ width: isMobile ? '100%' : 280 }}
               value={keywordInput}
               onChange={(e) => setKeywordInput(e.target.value)}
               onPressEnter={() => {
@@ -164,7 +175,7 @@ export default function AdminUsersPage() {
             />
             <Select<UserStatus | 'ALL'>
               value={status}
-              style={{ width: 200 }}
+              style={{ width: isMobile ? 180 : 200 }}
               onChange={(v) => {
                 setPage(1);
                 setStatus(v);
@@ -180,7 +191,93 @@ export default function AdminUsersPage() {
           borderRadius: 12,
           boxShadow: '0 1px 2px rgba(26,26,26,0.03)',
         }}
+        bodyStyle={isSmDown ? { padding: 12 } : undefined}
       >
+        {isSmDown ? (
+          <>
+            <List<AdminUserRow>
+              loading={listQ.isLoading}
+              dataSource={listQ.data?.items ?? []}
+              rowKey="id"
+              renderItem={(row) => {
+                const items = [
+                  row.status !== 'LOCKED'
+                    ? {
+                        key: 'lock',
+                        label: 'Khoá tài khoản',
+                        onClick: () =>
+                          confirmAction(row.id, 'LOCKED', `Khoá tài khoản ${row.email}?`),
+                      }
+                    : null,
+                  row.status !== 'ACTIVE'
+                    ? {
+                        key: 'unlock',
+                        label: 'Mở khoá',
+                        onClick: () =>
+                          confirmAction(row.id, 'ACTIVE', `Kích hoạt lại tài khoản ${row.email}?`),
+                      }
+                    : null,
+                  row.status !== 'BANNED'
+                    ? {
+                        key: 'ban',
+                        label: 'Cấm vĩnh viễn',
+                        danger: true,
+                        onClick: () =>
+                          confirmAction(row.id, 'BANNED', `Cấm vĩnh viễn tài khoản ${row.email}?`),
+                      }
+                    : null,
+                ].filter(Boolean) as Array<{
+                  key: string;
+                  label: string;
+                  danger?: boolean;
+                  onClick: () => void;
+                }>;
+                return (
+                  <List.Item
+                    style={{ padding: '12px 0', borderBottom: '1px solid var(--color-divider)' }}
+                    actions={[
+                      <Dropdown key="actions" menu={{ items }}>
+                        <Button size="small">
+                          Thao tác <DownOutlined />
+                        </Button>
+                      </Dropdown>,
+                    ]}
+                  >
+                    <List.Item.Meta
+                      avatar={
+                        <Avatar
+                          size={36}
+                          icon={<UserOutlined />}
+                          style={{ background: 'rgba(200,16,46,0.1)', color: 'var(--color-primary)' }}
+                        />
+                      }
+                      title={
+                        <div style={{ fontWeight: 600, color: 'var(--color-ink)' }}>
+                          {row.fullName}
+                        </div>
+                      }
+                      description={
+                        <div style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+                          <div>{row.email}</div>
+                          <div style={{ marginTop: 4 }}>{statusPill(row.status)}</div>
+                        </div>
+                      }
+                    />
+                  </List.Item>
+                );
+              }}
+            />
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }}>
+              <Pagination
+                simple
+                current={page}
+                pageSize={PAGE_SIZE}
+                total={listQ.data?.total ?? 0}
+                onChange={(p) => setPage(p)}
+              />
+            </div>
+          </>
+        ) : (
         <Table<AdminUserRow>
           rowKey="id"
           loading={listQ.isLoading}
@@ -191,7 +288,9 @@ export default function AdminUsersPage() {
             total: listQ.data?.total ?? 0,
             showSizeChanger: false,
             onChange: (p) => setPage(p),
+            simple: isMobile,
           }}
+          scroll={{ x: isMdDown ? 700 : undefined }}
           columns={[
             {
               title: 'Khách hàng',
@@ -227,24 +326,28 @@ export default function AdminUsersPage() {
                 </div>
               ),
             },
-            {
-              title: 'SĐT',
-              dataIndex: 'phone',
-              width: 140,
-              render: (v: string | null) => v ?? '—',
-            },
+            !isMdDown
+              ? {
+                  title: 'SĐT',
+                  dataIndex: 'phone',
+                  width: 140,
+                  render: (v: string | null) => v ?? '—',
+                }
+              : null,
             {
               title: 'Trạng thái',
               dataIndex: 'status',
               width: 140,
               render: (s: UserStatus) => statusPill(s),
             },
-            {
-              title: 'Ngày tham gia',
-              dataIndex: 'createdAt',
-              width: 140,
-              render: (d: string) => dayjs(d).format('DD/MM/YYYY'),
-            },
+            !isMdDown
+              ? {
+                  title: 'Ngày tham gia',
+                  dataIndex: 'createdAt',
+                  width: 140,
+                  render: (d: string) => dayjs(d).format('DD/MM/YYYY'),
+                }
+              : null,
             {
               title: '',
               key: 'actions',
@@ -303,8 +406,9 @@ export default function AdminUsersPage() {
                 );
               },
             },
-          ]}
+          ].filter(Boolean) as ColumnsType<AdminUserRow>}
         />
+        )}
       </Card>
     </div>
   );

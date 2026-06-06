@@ -30,7 +30,7 @@ export function SectionHeading({
   const titleStyle: CSSProperties = {
     fontFamily: 'var(--font-serif), Georgia, serif',
     fontWeight: 700,
-    fontSize: 32,
+    fontSize: 'clamp(22px, 5vw, 32px)',
     lineHeight: 1.15,
     color: 'var(--color-ink)',
     margin: 0,

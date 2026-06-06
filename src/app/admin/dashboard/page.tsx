@@ -2,14 +2,14 @@
 
 import { useQuery } from '@tanstack/react-query';
 import {
+  App as AntdApp,
   Button,
-  Card,
-  Segmented,
+  List,
   Skeleton,
   Table,
   Tag,
-  Tooltip,
 } from 'antd';
+import { useResponsive } from '@/lib/use-responsive';
 import {
   ArrowRightOutlined,
   BookOutlined,
@@ -19,52 +19,77 @@ import {
   ShoppingCartOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { api, unwrap } from '@/lib/api';
+import { api, extractErrorMessage, unwrap } from '@/lib/api';
+import { downloadCsv } from '@/lib/download-csv';
 import { formatVnd } from '@/lib/format';
 import { BookCover } from '@/components/book-cover';
-import { PageHeading, StatCard } from '@/components/editorial';
-import type {
-  BookListItem,
-  OrderStatus,
-  PageEnvelope,
-  PaymentStatus,
-} from '@/lib/types';
+import {
+  DateRangeToolbar,
+  PageHeading,
+  StatCard,
+  defaultGranularity,
+} from '@/components/editorial';
+import type { Granularity } from '@/components/editorial';
 
-interface AdminOrderRow {
-  id: string;
-  orderCode: string;
-  status: OrderStatus;
-  paymentStatus: PaymentStatus;
-  totalAmount: string;
-  createdAt: string;
-  userEmail: string | null;
-  userFullName: string | null;
+interface MetricValue {
+  value: number;
+  deltaPct: number;
+  direction: 'up' | 'down' | 'flat';
 }
 
-interface InventoryLowItem {
+interface OverviewResponse {
+  period: string;
+  range: { from: string; to: string };
+  metrics: {
+    revenue: MetricValue;
+    orderCount: MetricValue;
+    newCustomers: MetricValue;
+    averageOrderValue: MetricValue;
+  };
+}
+
+interface RevenuePoint {
+  date: string;
+  revenue: number;
+  orderCount: number;
+}
+
+interface RevenueSeriesResponse {
+  granularity: 'day' | 'week' | 'month';
+  points: RevenuePoint[];
+}
+
+interface LowStockItem {
   id: string;
   title: string;
-  isbn: string;
   slug: string;
+  primaryImage: string | null;
   stockQuantity: number;
-  lowStockThreshold: number;
-  isLowStock: boolean;
-  primaryImage?: string | null;
+  authorName: string | null;
 }
 
-interface InventoryResp {
-  items: InventoryLowItem[];
-  total: number;
+interface TopProductItem {
+  bookId: string;
+  title: string;
+  slug: string;
+  primaryImage: string | null;
+  unitsSold: number;
+  revenue: number;
+  avgPrice: number;
 }
 
-// Seeded bar heights so hydration stays stable.
-const BAR_HEIGHTS_30 = [
-  42, 58, 71, 35, 63, 84, 55, 48, 66, 52, 75, 60, 43, 70, 88, 54, 61, 72, 47,
-  68, 80, 52, 65, 78, 50, 62, 74, 58, 83, 69,
-];
-const BAR_HEIGHTS_7 = [52, 68, 73, 58, 80, 64, 85];
+interface SlowMoverItem {
+  id: string;
+  title: string;
+  slug: string;
+  primaryImage: string | null;
+  authorName: string | null;
+  unitsSold: number;
+  stockQuantity: number;
+}
 
 const SERIF: React.CSSProperties = {
   fontFamily: 'var(--font-serif), Georgia, serif',
@@ -81,83 +106,123 @@ function cardStyle(): React.CSSProperties {
   };
 }
 
+function toIso(d: dayjs.Dayjs): string {
+  return d.toISOString();
+}
+
 export default function AdminDashboardPage() {
-  const [chartRange, setChartRange] = useState<'7' | '30'>('30');
+  const { message } = AntdApp.useApp();
+  const { isMobile, screens } = useResponsive();
+  const isLgDown = !screens.lg;
 
-  // Total orders
-  const ordersTotalQ = useQuery({
-    queryKey: ['admin-dashboard', 'orders-total'],
-    queryFn: async () => {
-      const res = await api.get('/admin/orders', { params: { limit: 1 } });
-      return unwrap<PageEnvelope<AdminOrderRow>>(res);
-    },
-  });
+  // Date-range filter (shared toolbar). Default: last 30 days, daily chart.
+  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => [
+    dayjs().subtract(29, 'day').startOf('day'),
+    dayjs().endOf('day'),
+  ]);
+  const [granularity, setGranularity] = useState<Granularity>('day');
+  const [granOverridden, setGranOverridden] = useState(false);
 
-  // New customers
-  const customersQ = useQuery({
-    queryKey: ['admin-dashboard', 'customers-total'],
+  const handleRangeChange = (v: [dayjs.Dayjs, dayjs.Dayjs]) => {
+    setRange(v);
+    if (!granOverridden) setGranularity(defaultGranularity(v[0], v[1]));
+  };
+  const handleGranChange = (g: Granularity) => {
+    setGranOverridden(true);
+    setGranularity(g);
+  };
+
+  const fromIso = toIso(range[0].startOf('day'));
+  const toIsoStr = toIso(range[1].endOf('day'));
+
+  const overviewQ = useQuery<OverviewResponse>({
+    queryKey: ['admin-dashboard', 'overview', fromIso, toIsoStr],
     queryFn: async () => {
-      const res = await api.get('/admin/users', {
-        params: { role: 'CUSTOMER', limit: 1 },
+      const res = await api.get('/admin/reports/overview', {
+        params: { from: fromIso, to: toIsoStr },
       });
-      return unwrap<PageEnvelope<unknown>>(res);
+      return unwrap<OverviewResponse>(res);
     },
   });
 
-  // Paid orders — used for revenue + AOV (client-side aggregation).
-  const paidOrdersQ = useQuery({
-    queryKey: ['admin-dashboard', 'paid-orders'],
+  const revenueSeriesQ = useQuery<RevenueSeriesResponse>({
+    queryKey: ['admin-dashboard', 'revenue-series', fromIso, toIsoStr, granularity],
     queryFn: async () => {
-      const res = await api.get('/admin/orders', {
-        params: { paymentStatus: 'PAID', limit: 100 },
+      const res = await api.get('/admin/reports/revenue-series', {
+        params: { from: fromIso, to: toIsoStr, granularity },
       });
-      return unwrap<PageEnvelope<AdminOrderRow>>(res);
+      return unwrap<RevenueSeriesResponse>(res);
     },
   });
 
-  const revenue = useMemo(() => {
-    const items = paidOrdersQ.data?.items ?? [];
-    return items.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
-  }, [paidOrdersQ.data]);
-  const avgOrder = useMemo(() => {
-    const items = paidOrdersQ.data?.items ?? [];
-    if (!items.length) return 0;
-    return revenue / items.length;
-  }, [paidOrdersQ.data, revenue]);
-
-  // Low stock alerts
-  const lowStockQ = useQuery({
+  const lowStockQ = useQuery<{ items: LowStockItem[] }>({
     queryKey: ['admin-dashboard', 'low-stock'],
     queryFn: async () => {
-      const res = await api.get('/inventory', {
-        params: { lowStockOnly: 'true', limit: 5 },
+      const res = await api.get('/admin/reports/low-stock', {
+        params: { threshold: 10, limit: 5 },
       });
-      return unwrap<InventoryResp>(res);
+      return unwrap<{ items: LowStockItem[] }>(res);
     },
   });
 
-  // Top selling
-  const topSellingQ = useQuery({
-    queryKey: ['admin-dashboard', 'top-selling'],
+  const topSellingQ = useQuery<{ items: TopProductItem[] }>({
+    queryKey: ['admin-dashboard', 'top-3', fromIso, toIsoStr],
     queryFn: async () => {
-      const res = await api.get('/books', {
-        params: { sort: 'bestselling', limit: 3 },
+      const res = await api.get('/admin/reports/top-products', {
+        params: { from: fromIso, to: toIsoStr, limit: 3 },
       });
-      return unwrap<PageEnvelope<BookListItem>>(res);
+      return unwrap<{ items: TopProductItem[] }>(res);
     },
   });
 
-  const topTableQ = useQuery({
-    queryKey: ['admin-dashboard', 'top-table'],
+  const topTableQ = useQuery<{ items: TopProductItem[] }>({
+    queryKey: ['admin-dashboard', 'top-10', fromIso, toIsoStr],
     queryFn: async () => {
-      const res = await api.get('/books', {
-        params: { sort: 'bestselling', limit: 10 },
+      const res = await api.get('/admin/reports/top-products', {
+        params: { from: fromIso, to: toIsoStr, limit: 10 },
       });
-      return unwrap<PageEnvelope<BookListItem>>(res);
+      return unwrap<{ items: TopProductItem[] }>(res);
     },
   });
 
-  const bars = chartRange === '7' ? BAR_HEIGHTS_7 : BAR_HEIGHTS_30;
+  const slowMoversQ = useQuery<{ items: SlowMoverItem[] }>({
+    queryKey: ['admin-dashboard', 'slow-movers', fromIso, toIsoStr],
+    queryFn: async () => {
+      const res = await api.get('/admin/reports/slow-movers', {
+        params: { from: fromIso, to: toIsoStr, limit: 10 },
+      });
+      return unwrap<{ items: SlowMoverItem[] }>(res);
+    },
+  });
+
+  const metrics = overviewQ.data?.metrics;
+
+  const points = revenueSeriesQ.data?.points ?? [];
+  const maxRevenue = useMemo(
+    () =>
+      Math.max(
+        1,
+        points.reduce((m, p) => (p.revenue > m ? p.revenue : m), 0),
+      ),
+    [points],
+  );
+
+  const handleExport = async () => {
+    try {
+      await downloadCsv(
+        '/admin/reports/export',
+        `revenue-${range[0].format('YYYYMMDD')}-${range[1].format('YYYYMMDD')}.csv`,
+        {
+          type: 'revenue',
+          from: fromIso,
+          to: toIsoStr,
+        },
+      );
+      message.success('Đã tải báo cáo doanh thu.');
+    } catch (err) {
+      message.error(extractErrorMessage(err, 'Không thể tải báo cáo'));
+    }
+  };
 
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto' }}>
@@ -166,11 +231,22 @@ export default function AdminDashboardPage() {
         subtitle="Đây là những gì đang diễn ra với cửa hàng của bạn hôm nay."
       />
 
+      <DateRangeToolbar
+        value={range}
+        onChange={handleRangeChange}
+        granularity={granularity}
+        onGranularityChange={handleGranChange}
+      />
+
       {/* Stat cards */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+          gridTemplateColumns: isMobile
+            ? '1fr'
+            : !screens.lg
+            ? 'repeat(2, minmax(0, 1fr))'
+            : 'repeat(4, minmax(0, 1fr))',
           gap: 16,
           marginBottom: 24,
         }}
@@ -178,33 +254,29 @@ export default function AdminDashboardPage() {
         <StatCard
           icon={<DollarCircleOutlined />}
           label="Doanh thu"
-          value={formatVnd(revenue)}
-          // TODO phase 2 real analytics
-          delta={12.5}
+          value={formatVnd(metrics?.revenue.value ?? 0)}
+          delta={metrics?.revenue.deltaPct}
           tone="primary"
         />
         <StatCard
           icon={<ShoppingCartOutlined />}
           label="Đơn hàng"
-          value={ordersTotalQ.data?.total ?? 0}
-          // TODO phase 2 real analytics
-          delta={8.2}
+          value={metrics?.orderCount.value ?? 0}
+          delta={metrics?.orderCount.deltaPct}
           tone="ink"
         />
         <StatCard
           icon={<UserOutlined />}
           label="Khách mới"
-          value={customersQ.data?.total ?? 0}
-          // TODO phase 2 real analytics
-          delta={-2.4}
+          value={metrics?.newCustomers.value ?? 0}
+          delta={metrics?.newCustomers.deltaPct}
           tone="soft"
         />
         <StatCard
           icon={<BookOutlined />}
           label="Giá trị TB đơn"
-          value={formatVnd(avgOrder)}
-          // TODO phase 2 real analytics
-          delta={5.1}
+          value={formatVnd(metrics?.averageOrderValue.value ?? 0)}
+          delta={metrics?.averageOrderValue.deltaPct}
           tone="primary"
         />
       </div>
@@ -213,19 +285,21 @@ export default function AdminDashboardPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '7fr 3fr',
+          gridTemplateColumns: isLgDown ? '1fr' : '7fr 3fr',
           gap: 16,
           marginBottom: 24,
         }}
       >
         {/* Revenue chart */}
-        <div style={{ ...cardStyle(), padding: 24 }}>
+        <div style={{ ...cardStyle(), padding: isMobile ? 16 : 24 }}>
           <div
             style={{
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
+              alignItems: isMobile ? 'flex-start' : 'center',
               marginBottom: 8,
+              flexDirection: isMobile ? 'column' : 'row',
+              gap: isMobile ? 12 : 0,
             }}
           >
             <div>
@@ -235,47 +309,21 @@ export default function AdminDashboardPage() {
               >
                 Doanh thu
               </div>
-              <h2 style={{ ...SERIF, fontSize: 24, margin: 0 }}>
-                Biểu đồ doanh thu {chartRange === '7' ? '7' : '30'} ngày
+              <h2 style={{ ...SERIF, fontSize: isMobile ? 20 : 24, margin: 0 }}>
+                Biểu đồ doanh thu
               </h2>
             </div>
-            <Segmented
-              value={chartRange}
-              onChange={(v) => setChartRange(v as '7' | '30')}
-              options={[
-                { label: '7 ngày', value: '7' },
-                { label: '30 ngày', value: '30' },
-              ]}
+          </div>
+          {revenueSeriesQ.isLoading ? (
+            <Skeleton active paragraph={{ rows: 5 }} />
+          ) : (
+            <RevenueBarsSvg
+              points={points}
+              maxRevenue={maxRevenue}
+              highlightLast
+              compact={isMobile}
             />
-          </div>
-          <div
-            style={{
-              marginTop: 20,
-              height: 240,
-              display: 'flex',
-              alignItems: 'flex-end',
-              gap: chartRange === '7' ? 18 : 6,
-              padding: '0 4px',
-              borderBottom: '1px solid var(--color-divider)',
-              paddingBottom: 8,
-            }}
-          >
-            {bars.map((h, i) => (
-              <div
-                key={i}
-                style={{
-                  flex: 1,
-                  height: `${h}%`,
-                  background:
-                    i === bars.length - 1
-                      ? 'var(--color-primary)'
-                      : 'linear-gradient(180deg, #1A1A1A 0%, #4A4A4A 100%)',
-                  borderRadius: 4,
-                  transition: 'height 0.3s ease',
-                }}
-              />
-            ))}
-          </div>
+          )}
           <div
             style={{
               display: 'flex',
@@ -287,10 +335,14 @@ export default function AdminDashboardPage() {
             }}
           >
             <span>
-              {chartRange === '7' ? 'T2' : 'Ngày 1'}
+              {points[0]
+                ? dayjs(points[0].date).format('DD/MM')
+                : '—'}
             </span>
             <span>
-              {chartRange === '7' ? 'CN' : `Ngày ${bars.length}`}
+              {points[points.length - 1]
+                ? dayjs(points[points.length - 1].date).format('DD/MM')
+                : '—'}
             </span>
           </div>
           <div
@@ -300,8 +352,10 @@ export default function AdminDashboardPage() {
               color: 'var(--color-muted)',
             }}
           >
-            {/* TODO phase 2 real chart with recharts/nivo + live analytics */}
-            Biểu đồ mang tính minh hoạ — số liệu thực sẽ có trong phase 2.
+            Tổng doanh thu trong khoảng:{' '}
+            <strong style={{ color: 'var(--color-ink)' }}>
+              {formatVnd(points.reduce((sum, p) => sum + p.revenue, 0))}
+            </strong>
           </div>
         </div>
 
@@ -365,7 +419,7 @@ export default function AdminDashboardPage() {
                           color: 'var(--color-muted)',
                         }}
                       >
-                        {b.isbn}
+                        {b.authorName ?? '—'}
                       </div>
                     </div>
                     <span
@@ -417,6 +471,10 @@ export default function AdminDashboardPage() {
                 title={{ width: '60%' }}
                 paragraph={{ rows: 3, width: ['100%', '100%', '80%'] }}
               />
+            ) : (topSellingQ.data?.items ?? []).length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--color-muted)' }}>
+                Chưa có dữ liệu bán.
+              </div>
             ) : (
               <div
                 style={{
@@ -427,7 +485,7 @@ export default function AdminDashboardPage() {
               >
                 {(topSellingQ.data?.items ?? []).map((b, i) => (
                   <div
-                    key={b.id}
+                    key={b.bookId}
                     style={{
                       display: 'grid',
                       gridTemplateColumns: 'auto 1fr auto',
@@ -464,7 +522,7 @@ export default function AdminDashboardPage() {
                           color: 'var(--color-muted)',
                         }}
                       >
-                        {b.authors.map((a) => a.name).join(', ')}
+                        {b.unitsSold} cuốn
                       </div>
                     </div>
                     <span
@@ -474,7 +532,7 @@ export default function AdminDashboardPage() {
                         fontSize: 13,
                       }}
                     >
-                      {b.reviewCount}
+                      {formatVnd(b.revenue)}
                     </span>
                   </div>
                 ))}
@@ -485,13 +543,15 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Bottom top-10 table */}
-      <div style={{ ...cardStyle(), padding: 24 }}>
+      <div style={{ ...cardStyle(), padding: isMobile ? 16 : 24 }}>
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center',
+            alignItems: isMobile ? 'flex-start' : 'center',
             marginBottom: 16,
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? 12 : 0,
           }}
         >
           <div>
@@ -501,21 +561,75 @@ export default function AdminDashboardPage() {
             >
               Top bán chạy
             </div>
-            <h2 style={{ ...SERIF, fontSize: 24, margin: 0 }}>
-              Top 10 Sách bán chạy nhất tuần
+            <h2 style={{ ...SERIF, fontSize: isMobile ? 20 : 24, margin: 0 }}>
+              Top 10 Sách bán chạy nhất
             </h2>
           </div>
-          <Tooltip title="Sắp ra mắt">
-            <Button disabled icon={<DownloadOutlined />}>
-              Xuất báo cáo
-            </Button>
-          </Tooltip>
+          <Button icon={<DownloadOutlined />} onClick={handleExport}>
+            Xuất báo cáo
+          </Button>
         </div>
-        <Table<BookListItem>
-          rowKey="id"
+        {isMobile ? (
+          <List<TopProductItem>
+            loading={topTableQ.isLoading}
+            dataSource={topTableQ.data?.items ?? []}
+            rowKey="bookId"
+            renderItem={(row) => (
+              <List.Item
+                key={row.bookId}
+                style={{ padding: '12px 0', borderBottom: '1px solid var(--color-divider)' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+                  <BookCover src={row.primaryImage} alt={row.title} size="sm" />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: 'var(--color-ink)', fontSize: 14 }}>
+                      {row.title}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--color-muted)' }}>
+                      {row.unitsSold} cuốn · {formatVnd(row.avgPrice)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 700, color: 'var(--color-primary)', fontSize: 13 }}>
+                      {formatVnd(row.revenue)}
+                    </div>
+                    <div style={{ marginTop: 4 }}>
+                      {row.unitsSold > 0 ? (
+                        <Tag
+                          style={{
+                            background: 'rgba(47,133,90,0.1)',
+                            color: 'var(--color-success)',
+                            border: 'none',
+                            margin: 0,
+                          }}
+                        >
+                          Đang bán
+                        </Tag>
+                      ) : (
+                        <Tag
+                          style={{
+                            background: 'rgba(26,26,26,0.06)',
+                            color: 'var(--color-muted)',
+                            border: 'none',
+                            margin: 0,
+                          }}
+                        >
+                          —
+                        </Tag>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </List.Item>
+            )}
+          />
+        ) : (
+        <Table<TopProductItem>
+          rowKey="bookId"
           loading={topTableQ.isLoading}
           dataSource={topTableQ.data?.items ?? []}
           pagination={false}
+          scroll={{ x: 720 }}
           columns={[
             {
               title: 'Sách',
@@ -542,7 +656,7 @@ export default function AdminDashboardPage() {
                         color: 'var(--color-muted)',
                       }}
                     >
-                      {row.authors.map((a) => a.name).join(', ') || '—'}
+                      {row.slug}
                     </div>
                   </div>
                 </div>
@@ -550,8 +664,7 @@ export default function AdminDashboardPage() {
             },
             {
               title: 'Đã bán',
-              // TODO phase 2: wire real sold count (currently reviewCount proxy)
-              dataIndex: 'reviewCount',
+              dataIndex: 'unitsSold',
               width: 110,
               align: 'right',
               render: (v: number) => (
@@ -559,18 +672,29 @@ export default function AdminDashboardPage() {
               ),
             },
             {
-              title: 'Giá',
-              dataIndex: 'price',
-              width: 140,
+              title: 'Giá TB',
+              dataIndex: 'avgPrice',
+              width: 160,
               align: 'right',
-              render: (v: string) => formatVnd(v),
+              render: (v: number) => formatVnd(v),
+            },
+            {
+              title: 'Doanh thu',
+              dataIndex: 'revenue',
+              width: 160,
+              align: 'right',
+              render: (v: number) => (
+                <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
+                  {formatVnd(v)}
+                </span>
+              ),
             },
             {
               title: 'Trạng thái',
-              dataIndex: 'status',
+              key: 'status',
               width: 140,
-              render: (s: string) =>
-                s === 'ACTIVE' ? (
+              render: (_: unknown, row) =>
+                row.unitsSold > 0 ? (
                   <Tag
                     style={{
                       background: 'rgba(47,133,90,0.1)',
@@ -583,12 +707,12 @@ export default function AdminDashboardPage() {
                 ) : (
                   <Tag
                     style={{
-                      background: 'rgba(200,16,46,0.1)',
-                      color: 'var(--color-primary)',
+                      background: 'rgba(26,26,26,0.06)',
+                      color: 'var(--color-muted)',
                       border: 'none',
                     }}
                   >
-                    Tạm ẩn
+                    Chưa có lượt bán
                   </Tag>
                 ),
             },
@@ -606,8 +730,156 @@ export default function AdminDashboardPage() {
             },
           ]}
         />
+        )}
       </div>
 
+      {/* Sách bán chậm (slow movers) — driven by the selected date range */}
+      <div style={{ ...cardStyle(), padding: isMobile ? 16 : 24, marginTop: 24 }}>
+        <div
+          className="eyebrow"
+          style={{ color: 'var(--color-primary)', marginBottom: 6 }}
+        >
+          Bán chậm
+        </div>
+        <h2 style={{ ...SERIF, fontSize: isMobile ? 20 : 24, margin: '0 0 16px' }}>
+          Sách bán chậm trong khoảng đã chọn
+        </h2>
+        {slowMoversQ.isLoading ? (
+          <Skeleton active paragraph={{ rows: 4 }} />
+        ) : (slowMoversQ.data?.items ?? []).length === 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--color-muted)' }}>
+            Không có dữ liệu trong khoảng này.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile
+                ? '1fr'
+                : 'repeat(2, minmax(0, 1fr))',
+              gap: 12,
+            }}
+          >
+            {(slowMoversQ.data?.items ?? []).map((b) => (
+              <div
+                key={b.id}
+                style={{ display: 'flex', gap: 12, alignItems: 'center' }}
+              >
+                <BookCover
+                  src={b.primaryImage}
+                  alt={b.title}
+                  width={40}
+                  height={56}
+                  iconSize={16}
+                  borderRadius={4}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      color: 'var(--color-ink)',
+                      fontSize: 13,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {b.title}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-muted)' }}>
+                    {(b.authorName ?? '—') + ' · Tồn ' + b.stockQuantity}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    background: 'rgba(200,16,46,0.08)',
+                    color: 'var(--color-primary)',
+                    borderRadius: 999,
+                    padding: '3px 10px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {b.unitsSold} cuốn
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RevenueBarsSvg({
+  points,
+  maxRevenue,
+  highlightLast,
+  compact,
+}: {
+  points: RevenuePoint[];
+  maxRevenue: number;
+  highlightLast?: boolean;
+  compact?: boolean;
+}) {
+  const width = 720;
+  const height = compact ? 180 : 240;
+  const paddingX = 4;
+  const paddingTop = 12;
+  const paddingBottom = 8;
+  const innerW = width - paddingX * 2;
+  const innerH = height - paddingTop - paddingBottom;
+  const count = Math.max(1, points.length);
+  const gap = count <= 10 ? 10 : 4;
+  const barW = Math.max(3, (innerW - gap * (count - 1)) / count);
+
+  return (
+    <div
+      style={{
+        marginTop: 20,
+        width: '100%',
+        overflow: 'hidden',
+      }}
+    >
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width="100%"
+        height={height}
+        preserveAspectRatio="none"
+        style={{
+          display: 'block',
+          borderBottom: '1px solid var(--color-divider)',
+        }}
+      >
+        {points.map((p, i) => {
+          const x = paddingX + i * (barW + gap);
+          const h = Math.max(2, (p.revenue / maxRevenue) * innerH);
+          const y = paddingTop + (innerH - h);
+          const isLast = i === points.length - 1;
+          const fill =
+            highlightLast && isLast
+              ? 'var(--color-primary)'
+              : '#1A1A1A';
+          return (
+            <rect
+              key={p.date + i}
+              x={x}
+              y={y}
+              width={barW}
+              height={h}
+              rx={3}
+              ry={3}
+              fill={fill}
+            >
+              <title>
+                {dayjs(p.date).format('DD/MM/YYYY')} — {formatVnd(p.revenue)} (
+                {p.orderCount} đơn)
+              </title>
+            </rect>
+          );
+        })}
+      </svg>
     </div>
   );
 }
