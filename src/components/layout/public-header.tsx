@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   Avatar,
@@ -12,7 +12,7 @@ import {
   Popover,
   Space,
   Spin,
-} from 'antd';
+} from "antd";
 import {
   BellOutlined,
   CloseOutlined,
@@ -24,39 +24,112 @@ import {
   SearchOutlined,
   ShoppingCartOutlined,
   UserOutlined,
-} from '@ant-design/icons';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import 'dayjs/locale/vi';
-import { useEffect, useState, type CSSProperties } from 'react';
-import { useAuthStore } from '@/lib/auth-store';
-import { useCartBadge, useCurrentUser, useLogout } from '@/lib/auth-hooks';
+} from "@ant-design/icons";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import "dayjs/locale/vi";
+import { Suspense, useEffect, useState, type CSSProperties } from "react";
+import { useAuthStore } from "@/lib/auth-store";
+import { useCartBadge, useCurrentUser, useLogout } from "@/lib/auth-hooks";
 import {
   useMarkAllRead,
   useMarkRead,
   useNotificationsList,
   useNotificationsSSE,
   useUnreadCount,
-} from '@/lib/notifications-hooks';
-import { EditorialLogo } from '@/components/editorial';
-import { useResponsive } from '@/lib/use-responsive';
-import type { NotificationItem } from '@/lib/types';
+} from "@/lib/notifications-hooks";
+import { EditorialLogo } from "@/components/editorial";
+import { useResponsive } from "@/lib/use-responsive";
+import type { NotificationItem } from "@/lib/types";
 
 const { Header } = Layout;
 
 // Configure once — safe to call on every render; dayjs is idempotent.
 dayjs.extend(relativeTime);
-dayjs.locale('vi');
+dayjs.locale("vi");
 
 const NAV_ITEMS: { label: string; href: string }[] = [
-  { label: 'Trang chủ', href: '/' },
-  { label: 'Sách mới', href: '/books?sort=newest' },
-  { label: 'Bán chạy', href: '/books?sort=bestselling' },
-  { label: 'Sưu tầm', href: '/books' },
-  { label: 'Tác giả', href: '/books' },
+  { label: "Trang chủ", href: "/" },
+  { label: "Sách mới", href: "/books?sort=newest" },
+  { label: "Bán chạy", href: "/books?sort=bestselling" },
+  { label: "Tác giả", href: "/authors" },
 ];
+
+/**
+ * Renders the nav links with correct active highlighting. Uses useSearchParams,
+ * so it must be wrapped in a <Suspense> boundary by the caller.
+ */
+function NavLinks({
+  variant,
+  onNavigate,
+}: {
+  variant: "desktop" | "drawer";
+  onNavigate?: () => void;
+}) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Active when the path matches AND every query param in the nav href (e.g.
+  // ?sort=newest) matches the current URL — so items sharing /books don't all
+  // light up at once.
+  const isActive = (href: string): boolean => {
+    const [path, query] = href.split("?");
+    if (path === "/") return pathname === "/";
+    if (!pathname?.startsWith(path)) return false;
+    if (!query) return true;
+    const target = new URLSearchParams(query);
+    let active = true;
+    target.forEach((value, key) => {
+      if (searchParams.get(key) !== value) active = false;
+    });
+    return active;
+  };
+
+  return (
+    <>
+      {NAV_ITEMS.map((item) => {
+        const active = isActive(item.href);
+        return (
+          <Link
+            key={item.label}
+            href={item.href}
+            onClick={onNavigate}
+            style={
+              variant === "desktop"
+                ? navLinkStyle(active)
+                : drawerLinkStyle(active)
+            }
+          >
+            {item.label}
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
+function navLinkStyle(active: boolean): CSSProperties {
+  return {
+    fontSize: 14,
+    fontWeight: 500,
+    color: active ? "var(--color-primary)" : "var(--color-ink)",
+    letterSpacing: "0.01em",
+  };
+}
+
+function drawerLinkStyle(active: boolean): CSSProperties {
+  return {
+    display: "block",
+    padding: "16px 24px",
+    fontSize: 16,
+    fontWeight: 500,
+    color: active ? "var(--color-primary)" : "var(--color-ink)",
+    borderBottom: "1px solid var(--color-divider)",
+    letterSpacing: "0.01em",
+  };
+}
 
 export function PublicHeader() {
   const router = useRouter();
@@ -66,7 +139,7 @@ export function PublicHeader() {
   useCurrentUser();
   const logout = useLogout();
   const cartCount = useCartBadge();
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState("");
   const [navOpen, setNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { screens, isSmDown } = useResponsive();
@@ -87,7 +160,7 @@ export function PublicHeader() {
     const q = value.trim();
     setSearchOpen(false);
     if (!q) {
-      router.push('/books');
+      router.push("/books");
       return;
     }
     router.push(`/books?keyword=${encodeURIComponent(q)}`);
@@ -96,62 +169,62 @@ export function PublicHeader() {
   const userMenu = {
     items: [
       {
-        key: 'profile',
+        key: "profile",
         icon: <ProfileOutlined />,
         label: <Link href="/profile">Tài khoản</Link>,
       },
       {
-        key: 'orders',
+        key: "orders",
         icon: <FileTextOutlined />,
         label: <Link href="/orders">Đơn hàng của tôi</Link>,
       },
       {
-        key: 'wishlist',
+        key: "wishlist",
         icon: <HeartOutlined />,
         label: <Link href="/wishlist">Đã yêu thích</Link>,
       },
       {
-        key: 'reviews',
+        key: "reviews",
         icon: <FileTextOutlined />,
         label: <Link href="/profile/reviews">Đánh giá của tôi</Link>,
       },
-      { type: 'divider' as const },
+      { type: "divider" as const },
       {
-        key: 'logout',
+        key: "logout",
         icon: <LogoutOutlined />,
-        label: 'Đăng xuất',
+        label: "Đăng xuất",
         onClick: async () => {
           await logout.mutateAsync();
-          router.push('/');
+          router.push("/");
         },
       },
     ],
   };
 
   const headerStyle: CSSProperties = {
-    background: '#fff',
+    background: "#fff",
     padding: 0,
-    borderBottom: '1px solid var(--color-divider)',
+    borderBottom: "1px solid var(--color-divider)",
     height: isCompact ? 60 : 72,
-    lineHeight: 'normal',
-    position: 'sticky',
+    lineHeight: "normal",
+    position: "sticky",
     top: 0,
     zIndex: 20,
   };
 
   const innerStyle: CSSProperties = {
     maxWidth: 1280,
-    margin: '0 auto',
-    padding: isSmDown ? '0 12px' : isCompact ? '0 16px' : '0 24px',
-    height: '100%',
-    display: 'flex',
-    alignItems: 'center',
+    margin: "0 auto",
+    padding: isSmDown ? "0 12px" : isCompact ? "0 16px" : "0 24px",
+    height: "100%",
+    display: "flex",
+    alignItems: "center",
     gap: isCompact ? 12 : 32,
   };
 
   const navStyle: CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
+    display: "flex",
+    alignItems: "center",
     gap: 24,
   };
 
@@ -159,14 +232,14 @@ export function PublicHeader() {
     width: 40,
     height: 40,
     borderRadius: 999,
-    border: '1px solid var(--color-divider)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'var(--color-ink)',
-    background: '#fff',
-    cursor: 'pointer',
-    flex: '0 0 auto',
+    border: "1px solid var(--color-divider)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "var(--color-ink)",
+    background: "#fff",
+    cursor: "pointer",
+    flex: "0 0 auto",
   };
 
   return (
@@ -174,32 +247,32 @@ export function PublicHeader() {
       <div style={innerStyle}>
         <Link
           href="/"
-          style={{ display: 'flex', alignItems: 'center', flex: '0 0 auto' }}
+          style={{ display: "flex", alignItems: "center", flex: "0 0 auto" }}
           aria-label="Trang chủ"
         >
-          <EditorialLogo size={isCompact ? 'sm' : 'md'} />
+          <EditorialLogo size={isCompact ? "sm" : "md"} />
         </Link>
 
         {/* Desktop search bar (lg+) */}
         {!isCompact && (
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
             <Input
               allowClear
               size="large"
               prefix={
-                <SearchOutlined style={{ color: 'var(--color-muted)' }} />
+                <SearchOutlined style={{ color: "var(--color-muted)" }} />
               }
               placeholder="Tìm kiếm tác giả, tựa sách hoặc danh mục..."
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               onPressEnter={() => handleSearch(keyword)}
               style={{
-                width: '100%',
+                width: "100%",
                 maxWidth: 520,
                 borderRadius: 999,
-                background: 'var(--color-soft)',
-                borderColor: 'transparent',
-                padding: '8px 18px',
+                background: "var(--color-soft)",
+                borderColor: "transparent",
+                padding: "8px 18px",
               }}
             />
           </div>
@@ -208,28 +281,9 @@ export function PublicHeader() {
         {/* Desktop nav (lg+) */}
         {!isCompact && (
           <nav style={navStyle} aria-label="Primary">
-            {NAV_ITEMS.map((item) => {
-              const isActive =
-                item.href === '/'
-                  ? pathname === '/'
-                  : pathname?.startsWith(item.href.split('?')[0] ?? item.href);
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 500,
-                    color: isActive
-                      ? 'var(--color-primary)'
-                      : 'var(--color-ink)',
-                    letterSpacing: '0.01em',
-                  }}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
+            <Suspense fallback={null}>
+              <NavLinks variant="desktop" />
+            </Suspense>
           </nav>
         )}
 
@@ -243,20 +297,25 @@ export function PublicHeader() {
               type="button"
               aria-label="Tìm kiếm"
               onClick={() => setSearchOpen(true)}
-              style={{ ...iconBtn, border: '1px solid var(--color-divider)' }}
+              style={{ ...iconBtn, border: "1px solid var(--color-divider)" }}
             >
               <SearchOutlined style={{ fontSize: 18 }} />
             </button>
           )}
 
           <Link href="/cart" aria-label="Giỏ hàng" style={iconBtn}>
-            <Badge count={cartCount} size="small" showZero={false} offset={[2, -2]}>
+            <Badge
+              count={cartCount}
+              size="small"
+              showZero={false}
+              offset={[2, -2]}
+            >
               <ShoppingCartOutlined style={{ fontSize: 18 }} />
             </Badge>
           </Link>
 
           {/* Bell — interactive only when logged in as a customer. */}
-          {accessToken && (!user || user.role === 'CUSTOMER') ? (
+          {accessToken && (!user || user.role === "CUSTOMER") ? (
             <NotificationsBell iconBtnStyle={iconBtn} />
           ) : (
             <span style={iconBtn} aria-label="Thông báo">
@@ -268,31 +327,31 @@ export function PublicHeader() {
             <Dropdown menu={userMenu} placement="bottomRight">
               <span
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
+                  display: "inline-flex",
+                  alignItems: "center",
                   gap: 10,
-                  padding: isSmDown ? 2 : '4px 10px 4px 4px',
+                  padding: isSmDown ? 2 : "4px 10px 4px 4px",
                   borderRadius: 999,
-                  border: '1px solid var(--color-divider)',
-                  cursor: 'pointer',
+                  border: "1px solid var(--color-divider)",
+                  cursor: "pointer",
                 }}
               >
                 <Avatar
                   size={32}
                   icon={<UserOutlined />}
                   src={user.avatarUrl ?? undefined}
-                  style={{ background: 'var(--color-soft)' }}
+                  style={{ background: "var(--color-soft)" }}
                 />
                 {!isSmDown && (
                   <span
                     style={{
                       fontSize: 13,
                       fontWeight: 500,
-                      color: 'var(--color-ink)',
+                      color: "var(--color-ink)",
                       maxWidth: 140,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                   >
                     {user.fullName}
@@ -305,14 +364,14 @@ export function PublicHeader() {
             <Button
               type="primary"
               size="small"
-              onClick={() => router.push('/login')}
+              onClick={() => router.push("/login")}
             >
               Đăng nhập
             </Button>
           ) : (
             <Space size={8}>
-              <Button onClick={() => router.push('/register')}>Đăng ký</Button>
-              <Button type="primary" onClick={() => router.push('/login')}>
+              <Button onClick={() => router.push("/register")}>Đăng ký</Button>
+              <Button type="primary" onClick={() => router.push("/login")}>
                 Đăng nhập
               </Button>
             </Space>
@@ -342,33 +401,13 @@ export function PublicHeader() {
         closeIcon={<CloseOutlined />}
         styles={{ body: { padding: 0 } }}
       >
-        <nav aria-label="Mobile primary" style={{ display: 'flex', flexDirection: 'column' }}>
-          {NAV_ITEMS.map((item) => {
-            const isActive =
-              item.href === '/'
-                ? pathname === '/'
-                : pathname?.startsWith(item.href.split('?')[0] ?? item.href);
-            return (
-              <Link
-                key={item.label}
-                href={item.href}
-                onClick={() => setNavOpen(false)}
-                style={{
-                  display: 'block',
-                  padding: '16px 24px',
-                  fontSize: 16,
-                  fontWeight: 500,
-                  color: isActive
-                    ? 'var(--color-primary)'
-                    : 'var(--color-ink)',
-                  borderBottom: '1px solid var(--color-divider)',
-                  letterSpacing: '0.01em',
-                }}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav
+          aria-label="Mobile primary"
+          style={{ display: "flex", flexDirection: "column" }}
+        >
+          <Suspense fallback={null}>
+            <NavLinks variant="drawer" onNavigate={() => setNavOpen(false)} />
+          </Suspense>
         </nav>
       </Drawer>
 
@@ -385,17 +424,17 @@ export function PublicHeader() {
           allowClear
           autoFocus
           size="large"
-          prefix={<SearchOutlined style={{ color: 'var(--color-muted)' }} />}
+          prefix={<SearchOutlined style={{ color: "var(--color-muted)" }} />}
           placeholder="Tìm tác giả, tựa sách..."
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           onPressEnter={() => handleSearch(keyword)}
           style={{
-            width: '100%',
+            width: "100%",
             borderRadius: 999,
-            background: 'var(--color-soft)',
-            borderColor: 'transparent',
-            padding: '8px 18px',
+            background: "var(--color-soft)",
+            borderColor: "transparent",
+            padding: "8px 18px",
           }}
         />
       </Drawer>
@@ -406,11 +445,7 @@ export function PublicHeader() {
 /* --------------------------------------------------------------------------
  * Notifications bell (dropdown + badge)
  * ------------------------------------------------------------------------ */
-function NotificationsBell({
-  iconBtnStyle,
-}: {
-  iconBtnStyle: CSSProperties;
-}) {
+function NotificationsBell({ iconBtnStyle }: { iconBtnStyle: CSSProperties }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const unreadCount = useUnreadCount();
@@ -440,20 +475,20 @@ function NotificationsBell({
   };
 
   const content = (
-    <div style={{ width: 340, maxWidth: '90vw' }}>
+    <div style={{ width: 340, maxWidth: "90vw" }}>
       <div
         style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '4px 4px 10px',
-          borderBottom: '1px solid var(--color-divider)',
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "4px 4px 10px",
+          borderBottom: "1px solid var(--color-divider)",
           marginBottom: 4,
         }}
       >
         <strong
           style={{
-            fontFamily: 'var(--font-serif), Georgia, serif',
+            fontFamily: "var(--font-serif), Georgia, serif",
             fontSize: 16,
           }}
         >
@@ -464,13 +499,11 @@ function NotificationsBell({
           onClick={() => markAll.mutate()}
           disabled={markAll.isPending || unreadCount === 0}
           style={{
-            background: 'transparent',
-            border: 'none',
+            background: "transparent",
+            border: "none",
             color:
-              unreadCount > 0
-                ? 'var(--color-primary)'
-                : 'var(--color-muted)',
-            cursor: unreadCount > 0 ? 'pointer' : 'default',
+              unreadCount > 0 ? "var(--color-primary)" : "var(--color-muted)",
+            cursor: unreadCount > 0 ? "pointer" : "default",
             fontSize: 12,
             fontWeight: 600,
             padding: 0,
@@ -480,16 +513,16 @@ function NotificationsBell({
         </button>
       </div>
 
-      <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+      <div style={{ maxHeight: 360, overflowY: "auto" }}>
         {isLoading ? (
-          <div style={{ padding: 24, textAlign: 'center' }}>
+          <div style={{ padding: 24, textAlign: "center" }}>
             <Spin size="small" />
           </div>
         ) : items.length === 0 ? (
           <Empty
             description="Chưa có thông báo"
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            style={{ margin: '24px 0' }}
+            style={{ margin: "24px 0" }}
           />
         ) : (
           items.map((n) => (
@@ -498,29 +531,27 @@ function NotificationsBell({
               type="button"
               onClick={() => handleItemClick(n)}
               style={{
-                display: 'flex',
+                display: "flex",
                 gap: 10,
-                alignItems: 'flex-start',
-                padding: '10px 8px',
-                width: '100%',
-                textAlign: 'left',
-                background: n.isRead ? 'transparent' : 'rgba(200,16,46,0.04)',
-                border: 'none',
+                alignItems: "flex-start",
+                padding: "10px 8px",
+                width: "100%",
+                textAlign: "left",
+                background: n.isRead ? "transparent" : "rgba(200,16,46,0.04)",
+                border: "none",
                 borderRadius: 8,
-                cursor: 'pointer',
-                transition: 'background 120ms ease',
+                cursor: "pointer",
+                transition: "background 120ms ease",
               }}
             >
               <span
                 style={{
                   width: 8,
                   height: 8,
-                  borderRadius: '50%',
-                  background: n.isRead
-                    ? 'transparent'
-                    : 'var(--color-primary)',
+                  borderRadius: "50%",
+                  background: n.isRead ? "transparent" : "var(--color-primary)",
                   marginTop: 6,
-                  flex: '0 0 8px',
+                  flex: "0 0 8px",
                 }}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -528,10 +559,10 @@ function NotificationsBell({
                   style={{
                     fontWeight: n.isRead ? 500 : 700,
                     fontSize: 13,
-                    color: 'var(--color-ink)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    color: "var(--color-ink)",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
                   }}
                 >
                   {n.title}
@@ -540,12 +571,12 @@ function NotificationsBell({
                   <div
                     style={{
                       fontSize: 12,
-                      color: 'var(--color-muted)',
+                      color: "var(--color-muted)",
                       marginTop: 2,
-                      display: '-webkit-box',
+                      display: "-webkit-box",
                       WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
                     }}
                   >
                     {n.content}
@@ -554,7 +585,7 @@ function NotificationsBell({
                 <div
                   style={{
                     fontSize: 11,
-                    color: 'var(--color-muted)',
+                    color: "var(--color-muted)",
                     marginTop: 4,
                   }}
                 >
@@ -568,17 +599,17 @@ function NotificationsBell({
 
       <div
         style={{
-          borderTop: '1px solid var(--color-divider)',
+          borderTop: "1px solid var(--color-divider)",
           marginTop: 6,
           paddingTop: 6,
-          textAlign: 'center',
+          textAlign: "center",
         }}
       >
         <Link
           href="/notifications"
           onClick={() => setOpen(false)}
           style={{
-            color: 'var(--color-primary)',
+            color: "var(--color-primary)",
             fontSize: 13,
             fontWeight: 600,
           }}
@@ -599,7 +630,7 @@ function NotificationsBell({
       overlayStyle={{ paddingTop: 4 }}
     >
       <span
-        style={{ ...iconBtnStyle, cursor: 'pointer' }}
+        style={{ ...iconBtnStyle, cursor: "pointer" }}
         aria-label="Thông báo"
       >
         <Badge
