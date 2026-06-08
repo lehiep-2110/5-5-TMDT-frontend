@@ -33,6 +33,7 @@ import {
   defaultGranularity,
 } from '@/components/editorial';
 import type { Granularity } from '@/components/editorial';
+import { HBarList } from '../reports/_charts';
 
 interface MetricValue {
   value: number;
@@ -89,6 +90,15 @@ interface SlowMoverItem {
   authorName: string | null;
   unitsSold: number;
   stockQuantity: number;
+}
+
+interface TopCustomerItem {
+  userId: string;
+  email: string | null;
+  fullName: string | null;
+  orderCount: number;
+  totalSpent: number;
+  lastOrderAt: string | null;
 }
 
 const SERIF: React.CSSProperties = {
@@ -195,6 +205,17 @@ export default function AdminDashboardPage() {
     },
   });
 
+  // Top 5 khách hàng theo SỐ ĐƠN trong khoảng đã chọn (sort=orders).
+  const topCustomersQ = useQuery<{ items: TopCustomerItem[] }>({
+    queryKey: ['admin-dashboard', 'top-customers', fromIso, toIsoStr],
+    queryFn: async () => {
+      const res = await api.get('/admin/reports/customers/top', {
+        params: { from: fromIso, to: toIsoStr, sort: 'orders', limit: 5 },
+      });
+      return unwrap<{ items: TopCustomerItem[] }>(res);
+    },
+  });
+
   const metrics = overviewQ.data?.metrics;
 
   const points = revenueSeriesQ.data?.points ?? [];
@@ -205,6 +226,16 @@ export default function AdminDashboardPage() {
         points.reduce((m, p) => (p.revenue > m ? p.revenue : m), 0),
       ),
     [points],
+  );
+
+  const topCustomers = topCustomersQ.data?.items ?? [];
+  const maxCustomerOrders = useMemo(
+    () =>
+      Math.max(
+        1,
+        topCustomers.reduce((m, c) => (c.orderCount > m ? c.orderCount : m), 0),
+      ),
+    [topCustomers],
   );
 
   const handleExport = async () => {
@@ -540,6 +571,37 @@ export default function AdminDashboardPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Top 5 khách hàng theo số đơn — driven by the selected date range */}
+      <div
+        style={{ ...cardStyle(), padding: isMobile ? 16 : 24, marginBottom: 24 }}
+      >
+        <div
+          className="eyebrow"
+          style={{ color: 'var(--color-primary)', marginBottom: 6 }}
+        >
+          Khách hàng thân thiết
+        </div>
+        <h2 style={{ ...SERIF, fontSize: isMobile ? 20 : 24, margin: '0 0 16px' }}>
+          Top 5 khách hàng đặt nhiều đơn nhất
+        </h2>
+        {topCustomersQ.isLoading ? (
+          <Skeleton active paragraph={{ rows: 4 }} />
+        ) : topCustomers.length === 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--color-muted)' }}>
+            Chưa có dữ liệu đơn hàng trong khoảng đã chọn.
+          </div>
+        ) : (
+          <HBarList
+            rows={topCustomers.map((c) => ({
+              label: c.fullName || c.email || '—',
+              value: c.orderCount,
+              valueDisplay: `${c.orderCount} đơn · ${formatVnd(c.totalSpent)}`,
+              max: maxCustomerOrders,
+            }))}
+          />
+        )}
       </div>
 
       {/* Bottom top-10 table */}
